@@ -1,0 +1,14 @@
+{
+  "name": "openfront-enhanced-extension",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "vendor:companion": "node ./scripts/vendor-companion-page-bridge.mjs",
+    "build": "node ./scripts/build.mjs",
+    "release": "node ./scripts/release.mjs",
+    "release:check": "node ./scripts/release.mjs --check-config",
+    "release:github": "node ./scripts/release.mjs --github-only",
+    "release:chrome": "node ./scripts/release.mjs --chrome-only",
+    "release:current": "node ./scripts/release.mjs --include-current-changes"
+  }
+}

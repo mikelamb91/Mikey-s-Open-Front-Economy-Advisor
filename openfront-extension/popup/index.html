@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=380" />
+    <title>OpenFront Enhanced</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="popup" id="app">
+      <header class="header">
+        <h1>OpenFront <span class="accent">Enhanced</span></h1>
+        <span class="version" id="versionLabel">v0.1.1</span>
+      </header>
+
+      <div class="notice" id="statusNotice">
+        Loading active tab state...
+      </div>
+
+      <section class="section">
+        <h2>Auto-Join</h2>
+        <label class="toggle-row">
+          <span>Enabled</span>
+          <input type="checkbox" id="autojoinEnabled" />
+        </label>
+        <label class="toggle-row">
+          <span>Join chime</span>
+          <input type="checkbox" id="autojoinSound" />
+        </label>
+      </section>
+
+      <section class="section">
+        <h2>Core OFE Sounds</h2>
+        <div class="grid two" id="soundToggles"></div>
+      </section>
+
+                    <section class="section">
+                        <h2>Helper Modules</h2>
+        <div class="subtext" id="companionHint">
+                            Bundled helper modules are active on OpenFront hosts.
+        </div>
+        <div class="grid two" id="helperToggles"></div>
+        <label class="select-row">
+          <span>Economic heatmap intensity</span>
+          <select id="heatmapIntensity">
+            <option value="0">Low</option>
+            <option value="1">Default</option>
+            <option value="2">High</option>
+          </select>
+        </label>
+      </section>
+    </div>
+    <script src="popup.js"></script>
+  </body>
+</html>

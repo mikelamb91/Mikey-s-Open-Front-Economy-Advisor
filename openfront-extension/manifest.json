@@ -1,0 +1,89 @@
+{
+  "manifest_version": 3,
+  "name": "OpenFront Enhanced",
+  "version": "0.1.1",
+  "description": "Red markers on nations during spawn selection, visible at any zoom level.",
+  "permissions": [],
+  "host_permissions": [
+    "*://openfront.io/*",
+    "*://www.openfront.io/*",
+    "*://openfront.dev/*",
+    "*://www.openfront.dev/*",
+    "*://*.openfront.dev/*",
+    "http://localhost:9000/*",
+    "http://127.0.0.1:9000/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://openfront.io/*",
+        "*://www.openfront.io/*",
+        "*://openfront.dev/*",
+        "*://www.openfront.dev/*",
+        "*://*.openfront.dev/*",
+        "http://localhost:9000/*",
+        "http://127.0.0.1:9000/*"
+      ],
+      "js": [
+        "src/pagehook/namespace.js",
+        "src/pagehook/constants.js",
+        "src/pagehook/utils.js",
+        "src/pagehook/keybinds.js",
+        "src/pagehook/helper-bridge.js",
+        "src/pagehook/settings-ui.js",
+        "src/pagehook/shortcut-panel.js",
+        "src/pagehook/chat-search.js",
+        "src/pagehook/emoji-priority.js",
+        "src/pagehook/emoji-search.js",
+        "src/pagehook/game-hooks.js",
+        "src/pagehook/lobby-auto-join.js",
+        "src/pagehook/neighbor-watch.js",
+        "src/pagehook/economy-advisor-panel.js",
+        "src/pagehook/signal-dock.js",
+        "src/pagehook/shortcuts.js",
+        "src/page-hook.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "*://openfront.io/*",
+        "*://www.openfront.io/*",
+        "*://openfront.dev/*",
+        "*://www.openfront.dev/*",
+        "*://*.openfront.dev/*",
+        "http://localhost:9000/*",
+        "http://127.0.0.1:9000/*"
+      ],
+      "js": ["src/content.js"],
+      "css": ["src/content.css"],
+      "run_at": "document_start"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/index.html",
+    "default_title": "OpenFront Enhanced"
+  },
+  "web_accessible_resources": [
+    {
+      "matches": [
+        "*://openfront.io/*",
+        "*://www.openfront.io/*",
+        "*://openfront.dev/*",
+        "*://www.openfront.dev/*",
+        "*://*.openfront.dev/*",
+        "http://localhost:9000/*",
+        "http://127.0.0.1:9000/*"
+      ],
+      "resources": [
+        "src/vendor/page-bridge/*.js"
+      ]
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
