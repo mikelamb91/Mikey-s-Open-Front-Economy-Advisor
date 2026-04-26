@@ -7,12 +7,17 @@
   const { state, fn } = ns;
   const ROOT_ID = "ofe-economy-advisor-panel";
   const COLLAPSE_KEY = "ofe.econ.advisor.collapsed";
+  const SIZE_KEY = "ofe.econ.advisor.size";
   const OVERLAY_ID = "ofe-economy-advisor-overlay";
   let panelEl = null;
   let overlayEl = null;
   let timer = null;
   let sendTickTimer = null;
   let collapsed = false;
+  let lastExpandedHeight = "";
+  let savedSize = null;
+  let resizeObserver = null;
+  let resizeSaveTimer = null;
   let planCache = { at: 0, key: "", targets: [] };
   let spawnCache = { raw: "", at: 0, candidates: [] };
   let terrainIntelCache = { at: 0, key: "", data: null };
@@ -100,6 +105,42 @@
     } catch (_) {}
   }
 
+  function loadSize() {
+    try {
+      const raw = localStorage.getItem(SIZE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return;
+      savedSize = {
+        width: typeof parsed.width === "string" ? parsed.width : "",
+        height: typeof parsed.height === "string" ? parsed.height : "",
+      };
+      if (savedSize.height) lastExpandedHeight = savedSize.height;
+    } catch (_) {
+      savedSize = null;
+    }
+  }
+
+  function saveSize() {
+    // Skip while collapsed: cleared height would clobber the user's last expanded size.
+    if (!panelEl || collapsed) return;
+    try {
+      const payload = {
+        width: panelEl.style.width || "",
+        height: panelEl.style.height || "",
+      };
+      localStorage.setItem(SIZE_KEY, JSON.stringify(payload));
+    } catch (_) {}
+  }
+
+  function scheduleSizeSave() {
+    if (resizeSaveTimer) clearTimeout(resizeSaveTimer);
+    resizeSaveTimer = setTimeout(() => {
+      resizeSaveTimer = null;
+      saveSize();
+    }, 250);
+  }
+
   function ensurePanel() {
     if (panelEl && document.body.contains(panelEl)) return panelEl;
     if (!document.body) return null;
@@ -110,9 +151,13 @@
       "position:fixed",
       "top:12px",
       "left:12px",
-      "width:min(384px,calc(100vw - 24px))",
-      "max-height:72vh",
+      "width:384px",
+      "min-width:280px",
+      "max-width:calc(100vw - 24px)",
+      "min-height:80px",
+      "max-height:calc(100vh - 24px)",
       "overflow:auto",
+      "resize:both",
       "z-index:2147483250",
       "background:rgba(2,6,23,.92)",
       "border:1px solid rgba(56,189,248,.28)",
@@ -124,7 +169,25 @@
       "pointer-events:auto",
     ].join(";");
     document.body.appendChild(panelEl);
+    if (savedSize && savedSize.width) panelEl.style.width = savedSize.width;
+    if (savedSize && savedSize.height) panelEl.style.height = savedSize.height;
+    applyCollapseStyles();
+    if (typeof ResizeObserver !== "undefined" && !resizeObserver) {
+      resizeObserver = new ResizeObserver(() => scheduleSizeSave());
+      resizeObserver.observe(panelEl);
+    }
     return panelEl;
+  }
+
+  function applyCollapseStyles() {
+    if (!panelEl) return;
+    if (collapsed) {
+      panelEl.style.height = "";
+      panelEl.style.resize = "none";
+    } else {
+      if (lastExpandedHeight) panelEl.style.height = lastExpandedHeight;
+      panelEl.style.resize = "both";
+    }
   }
 
   function ensureOverlay() {
@@ -2093,8 +2156,10 @@
     const btn = panelEl && panelEl.querySelector("#ofe-econ-collapse");
     if (!btn) return;
     btn.addEventListener("click", () => {
+      if (!collapsed && panelEl) lastExpandedHeight = panelEl.style.height;
       collapsed = !collapsed;
       saveCollapsed();
+      applyCollapseStyles();
       render();
     });
   }
@@ -2267,6 +2332,7 @@
   fn.initEconomyAdvisorPanel = () => {
     if (timer) return;
     loadCollapsed();
+    loadSize();
     let pendingFrame = false;
     let lastRenderAt = 0;
     const minRenderGap = () => {
