@@ -316,6 +316,7 @@
       showNukeTargetHeatmap: false,
       showSignalDock: true,
       showEconomyAdvisorPanel: true,
+      uiHidden: false,
     };
   }
 

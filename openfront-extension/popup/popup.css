@@ -110,3 +110,13 @@ h1 {
   opacity: 0.5;
   pointer-events: none;
 }
+
+.master-section {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.25);
+}
+
+body[data-ofe-hidden="true"] .section:not(.master-section) {
+  opacity: 0.5;
+  pointer-events: none;
+}
