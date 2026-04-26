@@ -2141,9 +2141,14 @@
   }
 
   function renderHeader(isCollapsed) {
+    // top:-8px compensates for the wrapper's -8px top margin so the sticky pin stays
+    // flush with the panel's border edge instead of jumping down to the padding edge.
+    // The opaque cyan-tinted base masks scrolled content from showing through.
+    const baseStyle =
+      "position:sticky;top:-8px;z-index:2;padding:6px 10px;background:linear-gradient(rgba(56,189,248,.10),rgba(56,189,248,.10)),rgba(2,6,23,.96);display:flex;justify-content:space-between;align-items:center";
     const wrapperStyle = isCollapsed
-      ? "margin:-8px;padding:6px 10px;background:rgba(56,189,248,.08);display:flex;justify-content:space-between;align-items:center"
-      : "margin:-8px -8px 6px;padding:6px 10px;background:rgba(56,189,248,.08);border-bottom:1px solid rgba(56,189,248,.22);display:flex;justify-content:space-between;align-items:center";
+      ? `margin:-8px;${baseStyle}`
+      : `margin:-8px -8px 6px;${baseStyle};border-bottom:1px solid rgba(56,189,248,.22)`;
     const label = isCollapsed ? "Expand panel" : "Collapse panel";
     const tooltip = isCollapsed ? "Expand" : "Collapse";
     const chevron = isCollapsed ? "▼" : "▲";
