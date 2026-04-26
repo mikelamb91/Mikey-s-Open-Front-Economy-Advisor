@@ -2021,10 +2021,7 @@
       }
     } catch (_) {}
     return [
-      "<div style='margin:-8px -8px 6px;padding:6px 10px;background:rgba(56,189,248,.08);border-bottom:1px solid rgba(56,189,248,.22);display:flex;justify-content:space-between;align-items:center'>",
-      "<strong style='color:#67e8f9;letter-spacing:.04em'>Economy Advisor</strong>",
-      "<button id='ofe-econ-collapse' type='button' aria-label='Collapse panel' title='Collapse' style='font-size:12px;line-height:1;padding:2px 8px;border-radius:6px;border:1px solid rgba(148,163,184,.35);background:#0f172a;color:#cbd5e1;cursor:pointer'>▲</button>",
-      "</div>",
+      renderHeader(false),
       "<div style='border:1px solid rgba(56,189,248,.35);background:rgba(6,182,212,.12);border-radius:8px;padding:6px;margin-bottom:6px'>",
       "<div style='font-size:10px;text-transform:uppercase;color:#a5f3fc'>Best Next Step</div>",
       `<div style='font-weight:700'>${String(data.bestAction || "hold").toUpperCase()}</div>`,
@@ -2143,13 +2140,23 @@
     ].join("");
   }
 
-  function renderCollapsed() {
+  function renderHeader(isCollapsed) {
+    const wrapperStyle = isCollapsed
+      ? "margin:-8px;padding:6px 10px;background:rgba(56,189,248,.08);display:flex;justify-content:space-between;align-items:center"
+      : "margin:-8px -8px 6px;padding:6px 10px;background:rgba(56,189,248,.08);border-bottom:1px solid rgba(56,189,248,.22);display:flex;justify-content:space-between;align-items:center";
+    const label = isCollapsed ? "Expand panel" : "Collapse panel";
+    const tooltip = isCollapsed ? "Expand" : "Collapse";
+    const chevron = isCollapsed ? "▼" : "▲";
     return [
-      "<div style='margin:-8px;padding:6px 10px;background:rgba(56,189,248,.08);display:flex;justify-content:space-between;align-items:center'>",
+      `<div style='${wrapperStyle}'>`,
       "<strong style='color:#67e8f9;letter-spacing:.04em'>Economy Advisor</strong>",
-      "<button id='ofe-econ-collapse' type='button' aria-label='Expand panel' title='Expand' style='font-size:12px;line-height:1;padding:2px 8px;border-radius:6px;border:1px solid rgba(148,163,184,.35);background:#0f172a;color:#cbd5e1;cursor:pointer'>▼</button>",
+      `<button id='ofe-econ-collapse' type='button' aria-label='${label}' title='${tooltip}' style='font-size:12px;line-height:1;padding:2px 8px;border-radius:6px;border:1px solid rgba(148,163,184,.35);background:#0f172a;color:#cbd5e1;cursor:pointer'>${chevron}</button>`,
       "</div>",
     ].join("");
+  }
+
+  function renderCollapsed() {
+    return renderHeader(true);
   }
 
   function bindCollapse() {
