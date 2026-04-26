@@ -2143,20 +2143,15 @@
           overlayLayers.route = false;
           setOverlayHelperState({ boats: false, troops: false, alliances: false });
         } else if (action) {
-          // Single-select mode: turn on only the clicked overlay.
-          overlayEnabled = true;
-          overlayLayers.spawn = false;
-          overlayLayers.build = false;
-          overlayLayers.target = false;
-          overlayLayers.route = false;
-          const nextHelpers = { boats: false, troops: false, alliances: false };
-
           if (Object.prototype.hasOwnProperty.call(overlayLayers, action)) {
-            overlayLayers[action] = true;
+            overlayLayers[action] = !overlayLayers[action];
+            // Re-arm master gate so a chip turned on after Hide Map Overlay actually draws.
+            if (overlayLayers[action]) overlayEnabled = true;
           } else if (Object.prototype.hasOwnProperty.call(OVERLAY_HELPER_KEYS, action)) {
-            nextHelpers[action] = true;
+            const helpers = getOverlayHelperState();
+            helpers[action] = !helpers[action];
+            setOverlayHelperState(helpers);
           }
-          setOverlayHelperState(nextHelpers);
         }
         render();
       });
