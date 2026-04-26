@@ -23,6 +23,11 @@
   ns.fn.initSettingsIntegration?.();
   ns.fn.initLobbyAutoJoin?.();
 
+  ns.fn.applyUiHiddenStyles?.();
+  window.addEventListener("ofe-settings-updated", () => {
+    ns.fn.applyUiHiddenStyles?.();
+  });
+
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => {
       ns.fn.initShortcutPanel?.();

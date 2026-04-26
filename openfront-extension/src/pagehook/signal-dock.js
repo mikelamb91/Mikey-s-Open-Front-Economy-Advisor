@@ -12,6 +12,7 @@
   let lastTickAt = 0;
 
   function isEnabled() {
+    if (fn.isUiHidden && fn.isUiHidden()) return false;
     const settings = fn.getEffectiveExtensionSettings
       ? fn.getEffectiveExtensionSettings()
       : {};

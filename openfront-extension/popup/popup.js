@@ -127,6 +127,11 @@
     const companionHint = document.getElementById("companionHint");
     const heatmapIntensity = document.getElementById("heatmapIntensity");
     const helperSection = document.getElementById("helperToggles")?.closest(".section");
+    const uiHiddenToggle = document.getElementById("uiHidden");
+
+    const uiHidden = Boolean(settings.uiHidden);
+    if (uiHiddenToggle) uiHiddenToggle.checked = uiHidden;
+    document.body.dataset.ofeHidden = uiHidden ? "true" : "false";
 
     autojoinEnabled.checked = Boolean(rules.enabled);
     autojoinSound.checked = Boolean(rules.sound);
@@ -165,6 +170,14 @@
   }
 
   function bindStaticControls() {
+    document.getElementById("uiHidden").addEventListener("change", (event) => {
+      if (!activeState) return;
+      const next = Boolean(event.currentTarget.checked);
+      activeState.settings.uiHidden = next;
+      document.body.dataset.ofeHidden = next ? "true" : "false";
+      queuePatch("settings.uiHidden", next);
+    });
+
     document.getElementById("autojoinEnabled").addEventListener("change", (event) => {
       if (!activeState) return;
       activeState.rules.enabled = Boolean(event.currentTarget.checked);

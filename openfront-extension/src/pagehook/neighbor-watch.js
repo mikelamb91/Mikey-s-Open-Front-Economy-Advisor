@@ -82,21 +82,23 @@
   }
 
   function notifyNeighborChange(player, kind) {
-    if (!fn.pushBottomRightEvent) return;
-    const smallID = typeof player.smallID === "function" ? player.smallID() : null;
-    const colored = playerNameHtml(player);
-    const description =
-      kind === "sleeping"
-        ? `${colored} is sleeping`
-        : `${colored} betrayed and is now traitor`;
+    const uiHidden = fn.isUiHidden ? fn.isUiHidden() : false;
+    if (!uiHidden && fn.pushBottomRightEvent) {
+      const smallID = typeof player.smallID === "function" ? player.smallID() : null;
+      const colored = playerNameHtml(player);
+      const description =
+        kind === "sleeping"
+          ? `${colored} is sleeping`
+          : `${colored} betrayed and is now traitor`;
 
-    fn.pushBottomRightEvent({
-      description,
-      type: constants.MESSAGE_TYPE.CHAT,
-      unsafeDescription: true,
-      focusID: smallID != null ? smallID : undefined,
-      duration: 1200,
-    });
+      fn.pushBottomRightEvent({
+        description,
+        type: constants.MESSAGE_TYPE.CHAT,
+        unsafeDescription: true,
+        focusID: smallID != null ? smallID : undefined,
+        duration: 1200,
+      });
+    }
 
     if (fn.playExtensionSound) {
       fn.playExtensionSound(

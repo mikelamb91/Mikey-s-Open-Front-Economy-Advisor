@@ -96,11 +96,13 @@
             break;
           }
           case "chatSearch": {
+            if (fn.isUiHidden && fn.isUiHidden()) break;
             if (fn.hideEmojiSearchPalette) fn.hideEmojiSearchPalette();
             if (fn.openChatForHoveredPlayer) fn.openChatForHoveredPlayer();
             break;
           }
           case "emojiSearch": {
+            if (fn.isUiHidden && fn.isUiHidden()) break;
             if (fn.hideChatSearchPalette) fn.hideChatSearchPalette();
             if (fn.openEmojiForHoveredTile) fn.openEmojiForHoveredTile();
             break;
