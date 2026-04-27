@@ -122,12 +122,11 @@
   }
 
   function saveSize() {
-    // Skip while collapsed: cleared height would clobber the user's last expanded size.
-    if (!panelEl || collapsed) return;
+    if (!panelEl) return;
     try {
       const payload = {
         width: panelEl.style.width || "",
-        height: panelEl.style.height || "",
+        height: collapsed ? lastExpandedHeight : (panelEl.style.height || ""),
       };
       localStorage.setItem(SIZE_KEY, JSON.stringify(payload));
     } catch (_) {}
@@ -154,20 +153,25 @@
       "width:384px",
       "min-width:280px",
       "max-width:calc(100vw - 24px)",
+      "height:60vh",
       "min-height:80px",
       "max-height:calc(100vh - 24px)",
-      "overflow:auto",
+      "overflow:hidden",
       "resize:both",
       "z-index:2147483250",
       "background:rgba(2,6,23,.92)",
       "border:1px solid rgba(56,189,248,.28)",
       "box-shadow:0 14px 36px rgba(2,6,23,.6)",
       "border-radius:10px",
-      "padding:8px",
+      "padding:0",
       "font:11px/1.35 system-ui,sans-serif",
       "color:#e2e8f0",
       "pointer-events:auto",
     ].join(";");
+    // Set the layout-critical properties via explicit setters (more robust than cssText
+    // when one of the values contains spaces, which can confuse some parsers).
+    panelEl.style.display = "flex";
+    panelEl.style.flexDirection = "column";
     document.body.appendChild(panelEl);
     if (savedSize && savedSize.width) panelEl.style.width = savedSize.width;
     if (savedSize && savedSize.height) panelEl.style.height = savedSize.height;
@@ -182,11 +186,11 @@
   function applyCollapseStyles() {
     if (!panelEl) return;
     if (collapsed) {
-      panelEl.style.height = "";
-      panelEl.style.resize = "none";
+      panelEl.style.height = "auto";
+    } else if (lastExpandedHeight) {
+      panelEl.style.height = lastExpandedHeight;
     } else {
-      if (lastExpandedHeight) panelEl.style.height = lastExpandedHeight;
-      panelEl.style.resize = "both";
+      panelEl.style.height = "";
     }
   }
 
@@ -2022,6 +2026,8 @@
     } catch (_) {}
     return [
       renderHeader(false),
+      renderOverlayBar(),
+      "<div style='flex:1 1 0;min-height:0;overflow-y:auto;overflow-x:hidden;padding:8px'>",
       "<div style='border:1px solid rgba(56,189,248,.35);background:rgba(6,182,212,.12);border-radius:8px;padding:6px;margin-bottom:6px'>",
       "<div style='font-size:10px;text-transform:uppercase;color:#a5f3fc'>Best Next Step</div>",
       `<div style='font-weight:700'>${String(data.bestAction || "hold").toUpperCase()}</div>`,
@@ -2031,16 +2037,6 @@
       perfLine
         ? `<div style='font-size:10px;color:#67e8f9;margin-top:2px'>${perfLine}</div>`
         : "",
-      "<div style='margin-top:5px;display:flex;gap:4px;flex-wrap:wrap'>",
-      `<button data-ofe-overlay='toggle' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(52,211,153,.45);background:${overlayEnabled ? "rgba(16,185,129,.2)" : "rgba(15,23,42,.7)"};color:#d1fae5;cursor:pointer'>Hide Map Overlay</button>`,
-      `<button data-ofe-overlay='spawn' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(248,113,113,.4);background:${overlayLayers.spawn ? "rgba(239,68,68,.2)" : "rgba(15,23,42,.7)"};color:#fecaca;cursor:pointer'>Spawn dots</button>`,
-      `<button data-ofe-overlay='build' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(74,222,128,.4);background:${overlayLayers.build ? "rgba(34,197,94,.2)" : "rgba(15,23,42,.7)"};color:#bbf7d0;cursor:pointer'>Build spot</button>`,
-      `<button data-ofe-overlay='target' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(251,113,133,.4);background:${overlayLayers.target ? "rgba(244,63,94,.2)" : "rgba(15,23,42,.7)"};color:#fecdd3;cursor:pointer'>Target dot</button>`,
-      `<button data-ofe-overlay='route' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(56,189,248,.4);background:${overlayLayers.route ? "rgba(14,165,233,.2)" : "rgba(15,23,42,.7)"};color:#bae6fd;cursor:pointer'>Route line</button>`,
-      `<button data-ofe-overlay='boats' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(125,211,252,.45);background:${getOverlayHelperState().boats ? "rgba(14,165,233,.2)" : "rgba(15,23,42,.7)"};color:#bae6fd;cursor:pointer'>Landing boats</button>`,
-      `<button data-ofe-overlay='troops' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(167,139,250,.45);background:${getOverlayHelperState().troops ? "rgba(139,92,246,.2)" : "rgba(15,23,42,.7)"};color:#ddd6fe;cursor:pointer'>Troops sent</button>`,
-      `<button data-ofe-overlay='alliances' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(74,222,128,.45);background:${getOverlayHelperState().alliances ? "rgba(34,197,94,.2)" : "rgba(15,23,42,.7)"};color:#bbf7d0;cursor:pointer'>Alliance links</button>`,
-      "</div>",
       "</div>",
       "<div style='display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px'>",
       "<div style='border:1px solid rgba(148,163,184,.3);border-radius:8px;padding:6px;background:rgba(15,23,42,.65)'>",
@@ -2137,18 +2133,16 @@
           "</div>",
       ),
       "</div>",
+      "</div>",
     ].join("");
   }
 
   function renderHeader(isCollapsed) {
-    // top:-8px compensates for the wrapper's -8px top margin so the sticky pin stays
-    // flush with the panel's border edge instead of jumping down to the padding edge.
-    // The opaque cyan-tinted base masks scrolled content from showing through.
     const baseStyle =
-      "position:sticky;top:-8px;z-index:2;padding:6px 10px;background:linear-gradient(rgba(56,189,248,.10),rgba(56,189,248,.10)),rgba(2,6,23,.96);display:flex;justify-content:space-between;align-items:center";
+      "flex:0 0 auto;padding:6px 10px;background:linear-gradient(rgba(56,189,248,.10),rgba(56,189,248,.10)),rgba(2,6,23,.96);display:flex;justify-content:space-between;align-items:center";
     const wrapperStyle = isCollapsed
-      ? `margin:-8px;${baseStyle}`
-      : `margin:-8px -8px 6px;${baseStyle};border-bottom:1px solid rgba(56,189,248,.22)`;
+      ? baseStyle
+      : `${baseStyle};border-bottom:1px solid rgba(56,189,248,.22)`;
     const label = isCollapsed ? "Expand panel" : "Collapse panel";
     const tooltip = isCollapsed ? "Expand" : "Collapse";
     const chevron = isCollapsed ? "▼" : "▲";
@@ -2156,6 +2150,22 @@
       `<div style='${wrapperStyle}'>`,
       "<strong style='color:#67e8f9;letter-spacing:.04em'>Economy Advisor</strong>",
       `<button id='ofe-econ-collapse' type='button' aria-label='${label}' title='${tooltip}' style='font-size:12px;line-height:1;padding:2px 8px;border-radius:6px;border:1px solid rgba(148,163,184,.35);background:#0f172a;color:#cbd5e1;cursor:pointer'>${chevron}</button>`,
+      "</div>",
+    ].join("");
+  }
+
+  function renderOverlayBar() {
+    const helpers = getOverlayHelperState();
+    return [
+      "<div style='flex:0 0 auto;padding:6px 8px;background:rgba(2,6,23,.85);border-bottom:1px solid rgba(56,189,248,.22);display:flex;gap:4px;flex-wrap:wrap'>",
+      `<button data-ofe-overlay='toggle' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(52,211,153,.45);background:${overlayEnabled ? "rgba(16,185,129,.2)" : "rgba(15,23,42,.7)"};color:#d1fae5;cursor:pointer'>Hide Map Overlay</button>`,
+      `<button data-ofe-overlay='spawn' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(248,113,113,.4);background:${overlayLayers.spawn ? "rgba(239,68,68,.2)" : "rgba(15,23,42,.7)"};color:#fecaca;cursor:pointer'>Spawn dots</button>`,
+      `<button data-ofe-overlay='build' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(74,222,128,.4);background:${overlayLayers.build ? "rgba(34,197,94,.2)" : "rgba(15,23,42,.7)"};color:#bbf7d0;cursor:pointer'>Build spot</button>`,
+      `<button data-ofe-overlay='target' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(251,113,133,.4);background:${overlayLayers.target ? "rgba(244,63,94,.2)" : "rgba(15,23,42,.7)"};color:#fecdd3;cursor:pointer'>Target dot</button>`,
+      `<button data-ofe-overlay='route' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(56,189,248,.4);background:${overlayLayers.route ? "rgba(14,165,233,.2)" : "rgba(15,23,42,.7)"};color:#bae6fd;cursor:pointer'>Route line</button>`,
+      `<button data-ofe-overlay='boats' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(125,211,252,.45);background:${helpers.boats ? "rgba(14,165,233,.2)" : "rgba(15,23,42,.7)"};color:#bae6fd;cursor:pointer'>Landing boats</button>`,
+      `<button data-ofe-overlay='troops' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(167,139,250,.45);background:${helpers.troops ? "rgba(139,92,246,.2)" : "rgba(15,23,42,.7)"};color:#ddd6fe;cursor:pointer'>Troops sent</button>`,
+      `<button data-ofe-overlay='alliances' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(74,222,128,.45);background:${helpers.alliances ? "rgba(34,197,94,.2)" : "rgba(15,23,42,.7)"};color:#bbf7d0;cursor:pointer'>Alliance links</button>`,
       "</div>",
     ].join("");
   }
@@ -2327,7 +2337,7 @@
     const el = ensurePanel();
     if (!el) return;
     const data = calc();
-    el.style.display = "";
+    el.style.display = "flex";
     const nextHtml = collapsed ? renderCollapsed() : renderExpanded(data);
     if (nextHtml !== lastPanelHtml) {
       lastPanelHtml = nextHtml;
