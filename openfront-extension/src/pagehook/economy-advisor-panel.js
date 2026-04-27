@@ -22,7 +22,11 @@
   let spawnCache = { raw: "", at: 0, candidates: [] };
   let terrainIntelCache = { at: 0, key: "", data: null };
   let calcCache = { at: 0, data: null };
-  let lastPanelHtml = "";
+  let lastHeaderHtml = "";
+  let lastOverlayBarHtml = "";
+  let lastBodyHtml = "";
+  let shellBuilt = false;
+  let shellWasCollapsed = null;
   let lastOverlaySignature = "";
   const overlayLayers = {
     spawn: true,
@@ -144,6 +148,7 @@
     if (panelEl && document.body.contains(panelEl)) return panelEl;
     if (!document.body) return null;
 
+    shellBuilt = false;
     panelEl = document.createElement("div");
     panelEl.id = ROOT_ID;
     panelEl.style.cssText = [
@@ -181,6 +186,20 @@
       resizeObserver.observe(panelEl);
     }
     return panelEl;
+  }
+
+  function buildShell() {
+    if (!panelEl) return;
+    panelEl.innerHTML = [
+      `<div id='ofe-eco-header' style='${headerSlotStyle(false)}'></div>`,
+      `<div id='ofe-eco-overlay-bar' style='${OVERLAY_BAR_SLOT_STYLE}'></div>`,
+      "<div id='ofe-eco-body' style='flex:1 1 0;min-height:0;overflow-y:auto;overflow-x:hidden;padding:8px'></div>",
+    ].join("");
+    shellBuilt = true;
+    shellWasCollapsed = null;
+    lastHeaderHtml = "";
+    lastOverlayBarHtml = "";
+    lastBodyHtml = "";
   }
 
   function applyCollapseStyles() {
@@ -2005,7 +2024,7 @@
       .join("");
   }
 
-  function renderExpanded(data) {
+  function renderExpandedBody(data) {
     let perfLine = "";
     try {
       if (localStorage.getItem("ofe.perf.debug") === "1") {
@@ -2025,9 +2044,6 @@
       }
     } catch (_) {}
     return [
-      renderHeader(false),
-      renderOverlayBar(),
-      "<div style='flex:1 1 0;min-height:0;overflow-y:auto;overflow-x:hidden;padding:8px'>",
       "<div style='border:1px solid rgba(56,189,248,.35);background:rgba(6,182,212,.12);border-radius:8px;padding:6px;margin-bottom:6px'>",
       "<div style='font-size:10px;text-transform:uppercase;color:#a5f3fc'>Best Next Step</div>",
       `<div style='font-weight:700'>${String(data.bestAction || "hold").toUpperCase()}</div>`,
@@ -2133,31 +2149,33 @@
           "</div>",
       ),
       "</div>",
-      "</div>",
     ].join("");
   }
 
-  function renderHeader(isCollapsed) {
+  function headerSlotStyle(isCollapsed) {
     const baseStyle =
       "flex:0 0 auto;padding:6px 10px;background:linear-gradient(rgba(56,189,248,.10),rgba(56,189,248,.10)),rgba(2,6,23,.96);display:flex;justify-content:space-between;align-items:center";
-    const wrapperStyle = isCollapsed
+    return isCollapsed
       ? baseStyle
       : `${baseStyle};border-bottom:1px solid rgba(56,189,248,.22)`;
+  }
+
+  function renderHeaderInner(isCollapsed) {
     const label = isCollapsed ? "Expand panel" : "Collapse panel";
     const tooltip = isCollapsed ? "Expand" : "Collapse";
     const chevron = isCollapsed ? "▼" : "▲";
     return [
-      `<div style='${wrapperStyle}'>`,
       "<strong style='color:#67e8f9;letter-spacing:.04em'>Economy Advisor</strong>",
       `<button id='ofe-econ-collapse' type='button' aria-label='${label}' title='${tooltip}' style='font-size:12px;line-height:1;padding:2px 8px;border-radius:6px;border:1px solid rgba(148,163,184,.35);background:#0f172a;color:#cbd5e1;cursor:pointer'>${chevron}</button>`,
-      "</div>",
     ].join("");
   }
 
-  function renderOverlayBar() {
+  const OVERLAY_BAR_SLOT_STYLE =
+    "flex:0 0 auto;padding:6px 8px;background:rgba(2,6,23,.85);border-bottom:1px solid rgba(56,189,248,.22);display:flex;gap:4px;flex-wrap:wrap";
+
+  function renderOverlayBarInner() {
     const helpers = getOverlayHelperState();
     return [
-      "<div style='flex:0 0 auto;padding:6px 8px;background:rgba(2,6,23,.85);border-bottom:1px solid rgba(56,189,248,.22);display:flex;gap:4px;flex-wrap:wrap'>",
       `<button data-ofe-overlay='toggle' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(52,211,153,.45);background:${overlayEnabled ? "rgba(16,185,129,.2)" : "rgba(15,23,42,.7)"};color:#d1fae5;cursor:pointer'>Hide Map Overlay</button>`,
       `<button data-ofe-overlay='spawn' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(248,113,113,.4);background:${overlayLayers.spawn ? "rgba(239,68,68,.2)" : "rgba(15,23,42,.7)"};color:#fecaca;cursor:pointer'>Spawn dots</button>`,
       `<button data-ofe-overlay='build' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(74,222,128,.4);background:${overlayLayers.build ? "rgba(34,197,94,.2)" : "rgba(15,23,42,.7)"};color:#bbf7d0;cursor:pointer'>Build spot</button>`,
@@ -2166,12 +2184,7 @@
       `<button data-ofe-overlay='boats' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(125,211,252,.45);background:${helpers.boats ? "rgba(14,165,233,.2)" : "rgba(15,23,42,.7)"};color:#bae6fd;cursor:pointer'>Landing boats</button>`,
       `<button data-ofe-overlay='troops' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(167,139,250,.45);background:${helpers.troops ? "rgba(139,92,246,.2)" : "rgba(15,23,42,.7)"};color:#ddd6fe;cursor:pointer'>Troops sent</button>`,
       `<button data-ofe-overlay='alliances' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(74,222,128,.45);background:${helpers.alliances ? "rgba(34,197,94,.2)" : "rgba(15,23,42,.7)"};color:#bbf7d0;cursor:pointer'>Alliance links</button>`,
-      "</div>",
     ].join("");
-  }
-
-  function renderCollapsed() {
-    return renderHeader(true);
   }
 
   function bindCollapse() {
@@ -2329,24 +2342,59 @@
     if (document.hidden) return;
     if (!isEnabled() || !inGame()) {
       if (panelEl) panelEl.style.display = "none";
-      lastPanelHtml = "";
+      lastHeaderHtml = "";
+      lastOverlayBarHtml = "";
+      lastBodyHtml = "";
       lastOverlaySignature = "";
       clearOverlay();
       return;
     }
     const el = ensurePanel();
     if (!el) return;
+    if (!shellBuilt) buildShell();
     const data = calc();
     el.style.display = "flex";
-    const nextHtml = collapsed ? renderCollapsed() : renderExpanded(data);
-    if (nextHtml !== lastPanelHtml) {
-      lastPanelHtml = nextHtml;
-      el.innerHTML = nextHtml;
-      bindCollapse();
-      bindPlanActions();
-      bindSamActions();
-      bindOverlayActions();
+
+    const headerSlot = el.querySelector("#ofe-eco-header");
+    const overlayBarSlot = el.querySelector("#ofe-eco-overlay-bar");
+    const bodySlot = el.querySelector("#ofe-eco-body");
+
+    if (overlayBarSlot) overlayBarSlot.style.display = collapsed ? "none" : "";
+    if (bodySlot) bodySlot.style.display = collapsed ? "none" : "";
+
+    if (headerSlot) {
+      if (shellWasCollapsed !== collapsed) {
+        headerSlot.setAttribute("style", headerSlotStyle(collapsed));
+      }
+      const nextHeaderHtml = renderHeaderInner(collapsed);
+      if (nextHeaderHtml !== lastHeaderHtml) {
+        lastHeaderHtml = nextHeaderHtml;
+        headerSlot.innerHTML = nextHeaderHtml;
+        bindCollapse();
+      }
     }
+
+    if (!collapsed) {
+      if (overlayBarSlot) {
+        const nextOverlayBarHtml = renderOverlayBarInner();
+        if (nextOverlayBarHtml !== lastOverlayBarHtml) {
+          lastOverlayBarHtml = nextOverlayBarHtml;
+          overlayBarSlot.innerHTML = nextOverlayBarHtml;
+          bindOverlayActions();
+        }
+      }
+      if (bodySlot) {
+        const nextBodyHtml = renderExpandedBody(data);
+        if (nextBodyHtml !== lastBodyHtml) {
+          lastBodyHtml = nextBodyHtml;
+          bodySlot.innerHTML = nextBodyHtml;
+          bindPlanActions();
+          bindSamActions();
+        }
+      }
+    }
+
+    shellWasCollapsed = collapsed;
     drawOverlayFromData(data);
     bumpPerfMetric("render", performance.now() - startedAt);
   }
