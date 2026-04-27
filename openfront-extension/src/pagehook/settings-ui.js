@@ -525,8 +525,21 @@
     const ctx = findModalContext();
     if (!ctx) return;
 
+    if (fn.isUiHidden && fn.isUiHidden()) {
+      const existingButton = document.getElementById(TAB_BUTTON_ID);
+      if (existingButton) existingButton.style.display = "none";
+      const existingRoot = document.getElementById(ROOT_ID);
+      if (existingRoot) existingRoot.style.display = "none";
+      ctx.defaultContent.style.display = "";
+      state.extensionSettingsTabActive = false;
+      syncHostTabButtonState(ctx);
+      return;
+    }
+
     const root = ensureExtensionRoot(ctx.scroll);
     ensureTabButton(ctx);
+    const button = document.getElementById(TAB_BUTTON_ID);
+    if (button) button.style.display = "";
     syncExtensionKeybindRows(root);
     syncHostTabButtonState(ctx);
 
@@ -538,6 +551,11 @@
   function ensureSettingsSection() {
     const ctx = findModalContext();
     if (!ctx) return;
+
+    if (fn.isUiHidden && fn.isUiHidden()) {
+      applyExtensionTabState();
+      return;
+    }
 
     ensureExtensionRoot(ctx.scroll);
     ensureTabButton(ctx);

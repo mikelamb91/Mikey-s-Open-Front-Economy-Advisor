@@ -343,7 +343,8 @@
 
   function updateVisibility() {
     rules = loadRules();
-    const show = !inGame() && !!document.querySelector("game-mode-selector");
+    const uiHidden = fn.isUiHidden ? fn.isUiHidden() : false;
+    const show = !inGame() && !!document.querySelector("game-mode-selector") && !uiHidden;
     if (!show) {
       if (panelEl) panelEl.style.display = "none";
       return;
@@ -381,6 +382,7 @@
       onReady();
     }
     setInterval(updateVisibility, 4000);
+    window.addEventListener("ofe-settings-updated", updateVisibility);
   }
 
   fn.initLobbyAutoJoin = initLobbyAutoJoin;
