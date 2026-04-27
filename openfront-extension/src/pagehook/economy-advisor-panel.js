@@ -8,6 +8,7 @@
   const ROOT_ID = "ofe-economy-advisor-panel";
   const COLLAPSE_KEY = "ofe.econ.advisor.collapsed";
   const SIZE_KEY = "ofe.econ.advisor.size";
+  const OVERLAY_STATE_KEY = "ofe.econ.advisor.overlay";
   const OVERLAY_ID = "ofe-economy-advisor-overlay";
   let panelEl = null;
   let overlayEl = null;
@@ -133,6 +134,30 @@
         height: collapsed ? lastExpandedHeight : (panelEl.style.height || ""),
       };
       localStorage.setItem(SIZE_KEY, JSON.stringify(payload));
+    } catch (_) {}
+  }
+
+  function loadOverlayState() {
+    try {
+      const raw = localStorage.getItem(OVERLAY_STATE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return;
+      if (typeof parsed.enabled === "boolean") overlayEnabled = parsed.enabled;
+      if (parsed.layers && typeof parsed.layers === "object") {
+        for (const k of ["spawn", "build", "target", "route"]) {
+          if (typeof parsed.layers[k] === "boolean") overlayLayers[k] = parsed.layers[k];
+        }
+      }
+    } catch (_) {}
+  }
+
+  function saveOverlayState() {
+    try {
+      localStorage.setItem(OVERLAY_STATE_KEY, JSON.stringify({
+        enabled: overlayEnabled,
+        layers: { ...overlayLayers },
+      }));
     } catch (_) {}
   }
 
@@ -2242,11 +2267,13 @@
           overlayLayers.target = false;
           overlayLayers.route = false;
           setOverlayHelperState({ boats: false, troops: false, alliances: false });
+          saveOverlayState();
         } else if (action) {
           if (Object.prototype.hasOwnProperty.call(overlayLayers, action)) {
             overlayLayers[action] = !overlayLayers[action];
             // Re-arm master gate so a chip turned on after Hide Map Overlay actually draws.
             if (overlayLayers[action]) overlayEnabled = true;
+            saveOverlayState();
           } else if (Object.prototype.hasOwnProperty.call(OVERLAY_HELPER_KEYS, action)) {
             const helpers = getOverlayHelperState();
             helpers[action] = !helpers[action];
@@ -2403,6 +2430,7 @@
     if (timer) return;
     loadCollapsed();
     loadSize();
+    loadOverlayState();
     let pendingFrame = false;
     let lastRenderAt = 0;
     const minRenderGap = () => {
