@@ -2267,20 +2267,35 @@
       : `${baseStyle};border-bottom:1px solid rgba(56,189,248,.22)`;
   }
 
+  const SVG_PIN_OUTLINE =
+    "<svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'><line x1='12' y1='17' x2='12' y2='22'/><path d='M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17z'/></svg>";
+
+  const SVG_PIN_FILLED =
+    "<svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'><line x1='12' y1='17' x2='12' y2='22'/><path d='M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17z' fill='currentColor'/></svg>";
+
+  const SVG_CHEVRON_UP =
+    "<svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'><polyline points='18 15 12 9 6 15'/></svg>";
+
+  const SVG_CHEVRON_DOWN =
+    "<svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'><polyline points='6 9 12 15 18 9'/></svg>";
+
+  const ICON_BTN_BASE =
+    "display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;padding:0;border-radius:6px;cursor:pointer";
+  const ICON_BTN_IDLE = `${ICON_BTN_BASE};border:1px solid rgba(148,163,184,.35);background:#0f172a;color:#cbd5e1`;
+  const ICON_BTN_ACTIVE = `${ICON_BTN_BASE};border:1px solid rgba(56,189,248,.55);background:rgba(56,189,248,.18);color:#67e8f9`;
+
   function renderHeaderInner(isCollapsed) {
     const label = isCollapsed ? "Expand panel" : "Collapse panel";
     const tooltip = isCollapsed ? "Expand" : "Collapse";
-    const chevron = isCollapsed ? "▼" : "▲";
+    const chevron = isCollapsed ? SVG_CHEVRON_DOWN : SVG_CHEVRON_UP;
     const pinLabel = pinned ? "Unpin panel position" : "Pin panel position";
-    const pinText = pinned ? "Pinned" : "Pin";
-    const pinStyle = pinned
-      ? "font-size:11px;line-height:1;padding:2px 8px;border-radius:6px;border:1px solid rgba(56,189,248,.55);background:rgba(56,189,248,.18);color:#67e8f9;cursor:pointer"
-      : "font-size:11px;line-height:1;padding:2px 8px;border-radius:6px;border:1px solid rgba(148,163,184,.35);background:#0f172a;color:#cbd5e1;cursor:pointer";
+    const pinIcon = pinned ? SVG_PIN_FILLED : SVG_PIN_OUTLINE;
+    const pinStyle = pinned ? ICON_BTN_ACTIVE : ICON_BTN_IDLE;
     return [
       "<strong style='color:#67e8f9;letter-spacing:.04em'>Economy Advisor</strong>",
       "<span style='display:flex;gap:6px;align-items:center'>",
-      `<button id='ofe-econ-pin' type='button' aria-label='${pinLabel}' aria-pressed='${pinned ? "true" : "false"}' title='${pinLabel}' style='${pinStyle}'>${pinText}</button>`,
-      `<button id='ofe-econ-collapse' type='button' aria-label='${label}' title='${tooltip}' style='font-size:12px;line-height:1;padding:2px 8px;border-radius:6px;border:1px solid rgba(148,163,184,.35);background:#0f172a;color:#cbd5e1;cursor:pointer'>${chevron}</button>`,
+      `<button id='ofe-econ-pin' type='button' aria-label='${pinLabel}' aria-pressed='${pinned ? "true" : "false"}' title='${pinLabel}' style='${pinStyle}'>${pinIcon}</button>`,
+      `<button id='ofe-econ-collapse' type='button' aria-label='${label}' title='${tooltip}' style='${ICON_BTN_IDLE}'>${chevron}</button>`,
       "</span>",
     ].join("");
   }
