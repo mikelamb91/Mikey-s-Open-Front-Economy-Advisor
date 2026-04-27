@@ -31,6 +31,7 @@
   let lastBodyHtml = "";
   let shellBuilt = false;
   let shellWasCollapsed = null;
+  let shellWasPinned = null;
   let lastOverlaySignature = "";
   const overlayLayers = {
     spawn: true,
@@ -272,12 +273,13 @@
   function buildShell() {
     if (!panelEl) return;
     panelEl.innerHTML = [
-      `<div id='ofe-eco-header' style='${headerSlotStyle(false)}'></div>`,
+      `<div id='ofe-eco-header' style='${headerSlotStyle(false, pinned)}'></div>`,
       `<div id='ofe-eco-overlay-bar' style='${OVERLAY_BAR_SLOT_STYLE}'></div>`,
       "<div id='ofe-eco-body' style='flex:1 1 0;min-height:0;overflow-y:auto;overflow-x:hidden;padding:8px'></div>",
     ].join("");
     shellBuilt = true;
     shellWasCollapsed = null;
+    shellWasPinned = null;
     lastHeaderHtml = "";
     lastOverlayBarHtml = "";
     lastBodyHtml = "";
@@ -2234,9 +2236,10 @@
     ].join("");
   }
 
-  function headerSlotStyle(isCollapsed) {
+  function headerSlotStyle(isCollapsed, isPinned) {
+    const cursor = isPinned ? "default" : "grab";
     const baseStyle =
-      "flex:0 0 auto;padding:6px 10px;background:linear-gradient(rgba(56,189,248,.10),rgba(56,189,248,.10)),rgba(2,6,23,.96);display:flex;justify-content:space-between;align-items:center;cursor:grab;user-select:none;-webkit-user-select:none;touch-action:none";
+      `flex:0 0 auto;padding:6px 10px;background:linear-gradient(rgba(56,189,248,.10),rgba(56,189,248,.10)),rgba(2,6,23,.96);display:flex;justify-content:space-between;align-items:center;cursor:${cursor};user-select:none;-webkit-user-select:none;touch-action:none`;
     return isCollapsed
       ? baseStyle
       : `${baseStyle};border-bottom:1px solid rgba(56,189,248,.22)`;
@@ -2318,6 +2321,7 @@
     if (!headerSlot) return;
     headerSlot.addEventListener("pointerdown", (e) => {
       if (e.button !== 0) return;
+      if (pinned) return;
       if (e.target && e.target.closest && e.target.closest("button")) return;
       if (!panelEl) return;
       const rect = panelEl.getBoundingClientRect();
@@ -2346,8 +2350,7 @@
         headerSlot.removeEventListener("pointerup", onUp);
         headerSlot.removeEventListener("pointercancel", onUp);
         try { headerSlot.releasePointerCapture(ev.pointerId); } catch (_) {}
-        headerSlot.style.cursor = "grab";
-        if (moved && pinned) savePosition();
+        headerSlot.style.cursor = pinned ? "default" : "grab";
       };
       headerSlot.addEventListener("pointermove", onMove);
       headerSlot.addEventListener("pointerup", onUp);
@@ -2521,8 +2524,8 @@
     if (bodySlot) bodySlot.style.display = collapsed ? "none" : "";
 
     if (headerSlot) {
-      if (shellWasCollapsed !== collapsed) {
-        headerSlot.setAttribute("style", headerSlotStyle(collapsed));
+      if (shellWasCollapsed !== collapsed || shellWasPinned !== pinned) {
+        headerSlot.setAttribute("style", headerSlotStyle(collapsed, pinned));
       }
       const nextHeaderHtml = renderHeaderInner(collapsed);
       if (nextHeaderHtml !== lastHeaderHtml) {
@@ -2554,6 +2557,7 @@
     }
 
     shellWasCollapsed = collapsed;
+    shellWasPinned = pinned;
     drawOverlayFromData(data);
     bumpPerfMetric("render", performance.now() - startedAt);
   }
