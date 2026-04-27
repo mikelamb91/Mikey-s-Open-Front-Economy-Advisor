@@ -2109,6 +2109,25 @@
       .join("");
   }
 
+  function renderSendCardsBlock(data) {
+    return [
+      "<div style='display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px'>",
+      "<div style='border:1px solid rgba(148,163,184,.3);border-radius:8px;padding:6px;background:rgba(15,23,42,.65)'>",
+      "<div style='font-size:10px;text-transform:uppercase;color:#94a3b8'>Recommended Send</div>",
+      `<div id='ofe-send-rec-value' style='font-weight:700'>${formatTroopsUi(data.recommendedSendTroops)} (${Number(data.recommendedSendPercent || 0)}%)</div>`,
+      "</div>",
+      "<div style='border:1px solid rgba(148,163,184,.3);border-radius:8px;padding:6px;background:rgba(15,23,42,.65)'>",
+      "<div style='font-size:10px;text-transform:uppercase;color:#94a3b8'>Max Safe Send</div>",
+      `<div id='ofe-send-max-value' style='font-weight:700'>${formatTroopsUi(data.maxSafeSendTroops)} (${Number(data.maxSafeSendPercent || 0)}%)</div>`,
+      "</div>",
+      "</div>",
+    ].join("");
+  }
+
+  function renderCompactBody(data) {
+    return renderSendCardsBlock(data);
+  }
+
   function renderExpandedBody(data) {
     let perfLine = "";
     try {
@@ -2139,16 +2158,7 @@
         ? `<div style='font-size:10px;color:#67e8f9;margin-top:2px'>${perfLine}</div>`
         : "",
       "</div>",
-      "<div style='display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px'>",
-      "<div style='border:1px solid rgba(148,163,184,.3);border-radius:8px;padding:6px;background:rgba(15,23,42,.65)'>",
-      "<div style='font-size:10px;text-transform:uppercase;color:#94a3b8'>Recommended Send</div>",
-      `<div id='ofe-send-rec-value' style='font-weight:700'>${formatTroopsUi(data.recommendedSendTroops)} (${Number(data.recommendedSendPercent || 0)}%)</div>`,
-      "</div>",
-      "<div style='border:1px solid rgba(148,163,184,.3);border-radius:8px;padding:6px;background:rgba(15,23,42,.65)'>",
-      "<div style='font-size:10px;text-transform:uppercase;color:#94a3b8'>Max Safe Send</div>",
-      `<div id='ofe-send-max-value' style='font-weight:700'>${formatTroopsUi(data.maxSafeSendTroops)} (${Number(data.maxSafeSendPercent || 0)}%)</div>`,
-      "</div>",
-      "</div>",
+      renderSendCardsBlock(data),
       `<div id='ofe-send-inputs' style='margin:-2px 0 6px;font-size:10px;color:#94a3b8'>Send inputs: troops ${formatTroopsUi(data.sendInputTroops)} | cap ${formatTroopsUi(data.sendInputCap)} | optimal ${formatTroopsUi(data.sendInputOptimalLow)}-${formatTroopsUi(data.sendInputOptimalHigh)} (peak ${formatTroopsUi(data.sendInputOptimalPeak)}) | ratio ${Math.round((Number(data.sendInputAttackRatio || 0) * 100))}% | tick ${Math.round(Number(data.sendInputTicks || 0)).toLocaleString()} | tiles ${Math.round(Number(data.sendInputTiles || 0)).toLocaleString()} | src ${String(data.sendInputSource || "fallback")}</div>`,
       "<div style='border:1px solid rgba(148,163,184,.3);border-radius:8px;padding:6px;background:rgba(15,23,42,.65);margin-bottom:6px'>",
       "<div style='font-size:10px;text-transform:uppercase;color:#94a3b8'>Enemy Economy Lead</div>",
@@ -2531,7 +2541,7 @@
     const bodySlot = el.querySelector("#ofe-eco-body");
 
     if (overlayBarSlot) overlayBarSlot.style.display = collapsed ? "none" : "";
-    if (bodySlot) bodySlot.style.display = collapsed ? "none" : "";
+    if (bodySlot) bodySlot.style.display = "";
 
     if (headerSlot) {
       if (shellWasCollapsed !== collapsed || shellWasPinned !== pinned) {
@@ -2563,6 +2573,12 @@
           bindPlanActions();
           bindSamActions();
         }
+      }
+    } else if (bodySlot) {
+      const nextBodyHtml = renderCompactBody(data);
+      if (nextBodyHtml !== lastBodyHtml) {
+        lastBodyHtml = nextBodyHtml;
+        bodySlot.innerHTML = nextBodyHtml;
       }
     }
 
