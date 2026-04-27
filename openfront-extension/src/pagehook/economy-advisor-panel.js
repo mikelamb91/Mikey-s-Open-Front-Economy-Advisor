@@ -2275,19 +2275,22 @@
   }
 
   const OVERLAY_BAR_SLOT_STYLE =
-    "flex:0 0 auto;padding:6px 8px;background:rgba(2,6,23,.85);border-bottom:1px solid rgba(56,189,248,.22);display:flex;gap:4px;flex-wrap:wrap";
+    "flex:0 0 auto;padding:8px 10px;background:rgba(2,6,23,.85);border-bottom:1px solid rgba(56,189,248,.22);display:flex;gap:10px 14px;flex-wrap:wrap";
+
+  const OVERLAY_CHIP_BASE =
+    "font-size:10px;padding:3px 8px;margin:3px 4px;border-radius:6px;cursor:pointer";
 
   function renderOverlayBarInner() {
     const helpers = getOverlayHelperState();
     return [
-      `<button data-ofe-overlay='toggle' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(52,211,153,.45);background:${overlayEnabled ? "rgba(16,185,129,.2)" : "rgba(15,23,42,.7)"};color:#d1fae5;cursor:pointer'>Hide Map Overlay</button>`,
-      `<button data-ofe-overlay='spawn' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(248,113,113,.4);background:${overlayLayers.spawn ? "rgba(239,68,68,.2)" : "rgba(15,23,42,.7)"};color:#fecaca;cursor:pointer'>Spawn dots</button>`,
-      `<button data-ofe-overlay='build' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(74,222,128,.4);background:${overlayLayers.build ? "rgba(34,197,94,.2)" : "rgba(15,23,42,.7)"};color:#bbf7d0;cursor:pointer'>Build spot</button>`,
-      `<button data-ofe-overlay='target' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(251,113,133,.4);background:${overlayLayers.target ? "rgba(244,63,94,.2)" : "rgba(15,23,42,.7)"};color:#fecdd3;cursor:pointer'>Target dot</button>`,
-      `<button data-ofe-overlay='route' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(56,189,248,.4);background:${overlayLayers.route ? "rgba(14,165,233,.2)" : "rgba(15,23,42,.7)"};color:#bae6fd;cursor:pointer'>Route line</button>`,
-      `<button data-ofe-overlay='boats' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(125,211,252,.45);background:${helpers.boats ? "rgba(14,165,233,.2)" : "rgba(15,23,42,.7)"};color:#bae6fd;cursor:pointer'>Landing boats</button>`,
-      `<button data-ofe-overlay='troops' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(167,139,250,.45);background:${helpers.troops ? "rgba(139,92,246,.2)" : "rgba(15,23,42,.7)"};color:#ddd6fe;cursor:pointer'>Troops sent</button>`,
-      `<button data-ofe-overlay='alliances' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(74,222,128,.45);background:${helpers.alliances ? "rgba(34,197,94,.2)" : "rgba(15,23,42,.7)"};color:#bbf7d0;cursor:pointer'>Alliance links</button>`,
+      `<button data-ofe-overlay='toggle' type='button' style='${OVERLAY_CHIP_BASE};border:1px solid rgba(52,211,153,.45);background:${overlayEnabled ? "rgba(16,185,129,.2)" : "rgba(15,23,42,.7)"};color:#d1fae5'>Hide Map Overlay</button>`,
+      `<button data-ofe-overlay='spawn' type='button' style='${OVERLAY_CHIP_BASE};border:1px solid rgba(248,113,113,.4);background:${overlayLayers.spawn ? "rgba(239,68,68,.2)" : "rgba(15,23,42,.7)"};color:#fecaca'>Spawn dots</button>`,
+      `<button data-ofe-overlay='build' type='button' style='${OVERLAY_CHIP_BASE};border:1px solid rgba(74,222,128,.4);background:${overlayLayers.build ? "rgba(34,197,94,.2)" : "rgba(15,23,42,.7)"};color:#bbf7d0'>Build spot</button>`,
+      `<button data-ofe-overlay='target' type='button' style='${OVERLAY_CHIP_BASE};border:1px solid rgba(251,113,133,.4);background:${overlayLayers.target ? "rgba(244,63,94,.2)" : "rgba(15,23,42,.7)"};color:#fecdd3'>Target dot</button>`,
+      `<button data-ofe-overlay='route' type='button' style='${OVERLAY_CHIP_BASE};border:1px solid rgba(56,189,248,.4);background:${overlayLayers.route ? "rgba(14,165,233,.2)" : "rgba(15,23,42,.7)"};color:#bae6fd'>Route line</button>`,
+      `<button data-ofe-overlay='boats' type='button' style='${OVERLAY_CHIP_BASE};border:1px solid rgba(125,211,252,.45);background:${helpers.boats ? "rgba(14,165,233,.2)" : "rgba(15,23,42,.7)"};color:#bae6fd'>Landing boats</button>`,
+      `<button data-ofe-overlay='troops' type='button' style='${OVERLAY_CHIP_BASE};border:1px solid rgba(167,139,250,.45);background:${helpers.troops ? "rgba(139,92,246,.2)" : "rgba(15,23,42,.7)"};color:#ddd6fe'>Troops sent</button>`,
+      `<button data-ofe-overlay='alliances' type='button' style='${OVERLAY_CHIP_BASE};border:1px solid rgba(74,222,128,.45);background:${helpers.alliances ? "rgba(34,197,94,.2)" : "rgba(15,23,42,.7)"};color:#bbf7d0'>Alliance links</button>`,
     ].join("");
   }
 
