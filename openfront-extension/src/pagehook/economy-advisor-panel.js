@@ -271,8 +271,19 @@
     return panelEl;
   }
 
+  function ensureOverlayChipStyles() {
+    if (document.getElementById("ofe-overlay-chip-styles")) return;
+    const style = document.createElement("style");
+    style.id = "ofe-overlay-chip-styles";
+    style.textContent =
+      "[data-ofe-overlay]:hover{transform:translateY(-1px);filter:brightness(1.2) saturate(1.15)}" +
+      "[data-ofe-overlay]:active{transform:translateY(0);filter:brightness(.95)}";
+    document.head.appendChild(style);
+  }
+
   function buildShell() {
     if (!panelEl) return;
+    ensureOverlayChipStyles();
     panelEl.innerHTML = [
       `<div id='ofe-eco-header' style='${headerSlotStyle(false, pinned)}'></div>`,
       `<div id='ofe-eco-overlay-bar' style='${OVERLAY_BAR_SLOT_STYLE}'></div>`,
@@ -2278,19 +2289,26 @@
     "flex:0 0 auto;padding:8px 10px;background:rgba(2,6,23,.85);border-bottom:1px solid rgba(56,189,248,.22);display:flex;gap:10px 14px;flex-wrap:wrap";
 
   const OVERLAY_CHIP_BASE =
-    "font-size:10px;padding:3px 8px;margin:3px 4px;border-radius:6px;cursor:pointer";
+    "font-size:10px;padding:3px 8px;margin:3px 4px;border-radius:6px;cursor:pointer;font-weight:500;letter-spacing:.02em;transition:background .12s ease,color .12s ease,box-shadow .12s ease,transform .12s ease,filter .12s ease";
+
+  function chipStyle(rgb, active) {
+    if (active) {
+      return `${OVERLAY_CHIP_BASE};border:1px solid rgba(${rgb},.95);background:rgba(${rgb},.95);color:#0b1220;font-weight:600;box-shadow:0 0 0 1px rgba(${rgb},.25),0 0 6px rgba(${rgb},.45)`;
+    }
+    return `${OVERLAY_CHIP_BASE};border:1px solid rgba(${rgb},.3);background:rgba(15,23,42,.55);color:rgba(${rgb},.7)`;
+  }
 
   function renderOverlayBarInner() {
     const helpers = getOverlayHelperState();
     return [
-      `<button data-ofe-overlay='toggle' type='button' style='${OVERLAY_CHIP_BASE};border:1px solid rgba(52,211,153,.45);background:${overlayEnabled ? "rgba(16,185,129,.2)" : "rgba(15,23,42,.7)"};color:#d1fae5'>Hide Map Overlay</button>`,
-      `<button data-ofe-overlay='spawn' type='button' style='${OVERLAY_CHIP_BASE};border:1px solid rgba(248,113,113,.4);background:${overlayLayers.spawn ? "rgba(239,68,68,.2)" : "rgba(15,23,42,.7)"};color:#fecaca'>Spawn dots</button>`,
-      `<button data-ofe-overlay='build' type='button' style='${OVERLAY_CHIP_BASE};border:1px solid rgba(74,222,128,.4);background:${overlayLayers.build ? "rgba(34,197,94,.2)" : "rgba(15,23,42,.7)"};color:#bbf7d0'>Build spot</button>`,
-      `<button data-ofe-overlay='target' type='button' style='${OVERLAY_CHIP_BASE};border:1px solid rgba(251,113,133,.4);background:${overlayLayers.target ? "rgba(244,63,94,.2)" : "rgba(15,23,42,.7)"};color:#fecdd3'>Target dot</button>`,
-      `<button data-ofe-overlay='route' type='button' style='${OVERLAY_CHIP_BASE};border:1px solid rgba(56,189,248,.4);background:${overlayLayers.route ? "rgba(14,165,233,.2)" : "rgba(15,23,42,.7)"};color:#bae6fd'>Route line</button>`,
-      `<button data-ofe-overlay='boats' type='button' style='${OVERLAY_CHIP_BASE};border:1px solid rgba(125,211,252,.45);background:${helpers.boats ? "rgba(14,165,233,.2)" : "rgba(15,23,42,.7)"};color:#bae6fd'>Landing boats</button>`,
-      `<button data-ofe-overlay='troops' type='button' style='${OVERLAY_CHIP_BASE};border:1px solid rgba(167,139,250,.45);background:${helpers.troops ? "rgba(139,92,246,.2)" : "rgba(15,23,42,.7)"};color:#ddd6fe'>Troops sent</button>`,
-      `<button data-ofe-overlay='alliances' type='button' style='${OVERLAY_CHIP_BASE};border:1px solid rgba(74,222,128,.45);background:${helpers.alliances ? "rgba(34,197,94,.2)" : "rgba(15,23,42,.7)"};color:#bbf7d0'>Alliance links</button>`,
+      `<button data-ofe-overlay='toggle' type='button' style='${chipStyle("16,185,129", overlayEnabled)}'>Hide Map Overlay</button>`,
+      `<button data-ofe-overlay='spawn' type='button' style='${chipStyle("239,68,68", overlayLayers.spawn)}'>Spawn dots</button>`,
+      `<button data-ofe-overlay='build' type='button' style='${chipStyle("34,197,94", overlayLayers.build)}'>Build spot</button>`,
+      `<button data-ofe-overlay='target' type='button' style='${chipStyle("244,63,94", overlayLayers.target)}'>Target dot</button>`,
+      `<button data-ofe-overlay='route' type='button' style='${chipStyle("56,189,248", overlayLayers.route)}'>Route line</button>`,
+      `<button data-ofe-overlay='boats' type='button' style='${chipStyle("125,211,252", helpers.boats)}'>Landing boats</button>`,
+      `<button data-ofe-overlay='troops' type='button' style='${chipStyle("167,139,250", helpers.troops)}'>Troops sent</button>`,
+      `<button data-ofe-overlay='alliances' type='button' style='${chipStyle("74,222,128", helpers.alliances)}'>Alliance links</button>`,
     ].join("");
   }
 
