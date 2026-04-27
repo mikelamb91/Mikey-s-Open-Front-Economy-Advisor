@@ -263,6 +263,7 @@
       if (savedPosition.left) panelEl.style.left = savedPosition.left;
     }
     applyCollapseStyles();
+    clampPanelToViewport();
     if (typeof ResizeObserver !== "undefined" && !resizeObserver) {
       resizeObserver = new ResizeObserver(() => scheduleSizeSave());
       resizeObserver.observe(panelEl);
@@ -2306,15 +2307,23 @@
     });
   }
 
-  function clampPanelPosition(top, left, panelWidth) {
-    const margin = 40;
-    const horizMargin = 80;
-    const maxTop = Math.max(0, window.innerHeight - margin);
-    const minLeft = horizMargin - panelWidth;
-    const maxLeft = Math.max(minLeft, window.innerWidth - horizMargin);
+  function clampPanelPosition(top, left, panelWidth, panelHeight) {
+    const maxTop = Math.max(0, window.innerHeight - panelHeight);
+    const maxLeft = Math.max(0, window.innerWidth - panelWidth);
     const clampedTop = Math.min(Math.max(0, top), maxTop);
-    const clampedLeft = Math.min(Math.max(minLeft, left), maxLeft);
+    const clampedLeft = Math.min(Math.max(0, left), maxLeft);
     return { top: clampedTop, left: clampedLeft };
+  }
+
+  function clampPanelToViewport() {
+    if (!panelEl || !document.body.contains(panelEl)) return;
+    const rect = panelEl.getBoundingClientRect();
+    const { top, left } = clampPanelPosition(rect.top, rect.left, rect.width, rect.height);
+    if (Math.round(top) !== Math.round(rect.top) || Math.round(left) !== Math.round(rect.left)) {
+      panelEl.style.top = `${top}px`;
+      panelEl.style.left = `${left}px`;
+      if (pinned) savePosition();
+    }
   }
 
   function bindHeaderDrag(headerSlot) {
@@ -2330,6 +2339,7 @@
       const startTop = rect.top;
       const startLeft = rect.left;
       const panelWidth = rect.width;
+      const panelHeight = rect.height;
       let moved = false;
       try { headerSlot.setPointerCapture(e.pointerId); } catch (_) {}
       headerSlot.style.cursor = "grabbing";
@@ -2341,7 +2351,7 @@
         const dy = ev.clientY - startY;
         if (!moved && Math.abs(dx) + Math.abs(dy) < 2) return;
         moved = true;
-        const { top, left } = clampPanelPosition(startTop + dy, startLeft + dx, panelWidth);
+        const { top, left } = clampPanelPosition(startTop + dy, startLeft + dx, panelWidth, panelHeight);
         panelEl.style.top = `${top}px`;
         panelEl.style.left = `${left}px`;
       };
@@ -2568,6 +2578,14 @@
     loadSize();
     loadPosition();
     loadOverlayState();
+    let resizeRaf = 0;
+    window.addEventListener("resize", () => {
+      if (resizeRaf) return;
+      resizeRaf = requestAnimationFrame(() => {
+        resizeRaf = 0;
+        clampPanelToViewport();
+      });
+    });
     let pendingFrame = false;
     let lastRenderAt = 0;
     const minRenderGap = () => {
