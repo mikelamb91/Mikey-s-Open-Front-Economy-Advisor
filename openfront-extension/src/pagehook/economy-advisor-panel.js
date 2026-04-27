@@ -8,6 +8,7 @@
   const ROOT_ID = "ofe-economy-advisor-panel";
   const COLLAPSE_KEY = "ofe.econ.advisor.collapsed";
   const SIZE_KEY = "ofe.econ.advisor.size";
+  const POSITION_KEY = "ofe.econ.advisor.position";
   const OVERLAY_STATE_KEY = "ofe.econ.advisor.overlay";
   const OVERLAY_ID = "ofe-economy-advisor-overlay";
   let panelEl = null;
@@ -19,6 +20,8 @@
   let savedSize = null;
   let resizeObserver = null;
   let resizeSaveTimer = null;
+  let pinned = false;
+  let savedPosition = null;
   let planCache = { at: 0, key: "", targets: [] };
   let spawnCache = { raw: "", at: 0, candidates: [] };
   let terrainIntelCache = { at: 0, key: "", data: null };
@@ -137,6 +140,55 @@
     } catch (_) {}
   }
 
+  function loadPosition() {
+    try {
+      const raw = localStorage.getItem(POSITION_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return;
+      if (parsed.pinned !== true) return;
+      const top = typeof parsed.top === "string" ? parsed.top : "";
+      const left = typeof parsed.left === "string" ? parsed.left : "";
+      if (!top && !left) return;
+      pinned = true;
+      savedPosition = { top, left };
+    } catch (_) {
+      pinned = false;
+      savedPosition = null;
+    }
+  }
+
+  function currentPositionPx() {
+    if (!panelEl) return null;
+    const inlineTop = panelEl.style.top;
+    const inlineLeft = panelEl.style.left;
+    if (inlineTop && inlineLeft) {
+      return { top: inlineTop, left: inlineLeft };
+    }
+    const rect = panelEl.getBoundingClientRect();
+    return { top: `${Math.round(rect.top)}px`, left: `${Math.round(rect.left)}px` };
+  }
+
+  function savePosition() {
+    if (!panelEl) return;
+    const pos = currentPositionPx();
+    if (!pos) return;
+    savedPosition = pos;
+    try {
+      localStorage.setItem(
+        POSITION_KEY,
+        JSON.stringify({ pinned: true, top: pos.top, left: pos.left }),
+      );
+    } catch (_) {}
+  }
+
+  function clearPosition() {
+    savedPosition = null;
+    try {
+      localStorage.removeItem(POSITION_KEY);
+    } catch (_) {}
+  }
+
   function loadOverlayState() {
     try {
       const raw = localStorage.getItem(OVERLAY_STATE_KEY);
@@ -205,6 +257,10 @@
     document.body.appendChild(panelEl);
     if (savedSize && savedSize.width) panelEl.style.width = savedSize.width;
     if (savedSize && savedSize.height) panelEl.style.height = savedSize.height;
+    if (pinned && savedPosition) {
+      if (savedPosition.top) panelEl.style.top = savedPosition.top;
+      if (savedPosition.left) panelEl.style.left = savedPosition.left;
+    }
     applyCollapseStyles();
     if (typeof ResizeObserver !== "undefined" && !resizeObserver) {
       resizeObserver = new ResizeObserver(() => scheduleSizeSave());
@@ -225,6 +281,7 @@
     lastHeaderHtml = "";
     lastOverlayBarHtml = "";
     lastBodyHtml = "";
+    bindHeaderDrag(panelEl.querySelector("#ofe-eco-header"));
   }
 
   function applyCollapseStyles() {
@@ -2179,7 +2236,7 @@
 
   function headerSlotStyle(isCollapsed) {
     const baseStyle =
-      "flex:0 0 auto;padding:6px 10px;background:linear-gradient(rgba(56,189,248,.10),rgba(56,189,248,.10)),rgba(2,6,23,.96);display:flex;justify-content:space-between;align-items:center";
+      "flex:0 0 auto;padding:6px 10px;background:linear-gradient(rgba(56,189,248,.10),rgba(56,189,248,.10)),rgba(2,6,23,.96);display:flex;justify-content:space-between;align-items:center;cursor:grab;user-select:none;-webkit-user-select:none;touch-action:none";
     return isCollapsed
       ? baseStyle
       : `${baseStyle};border-bottom:1px solid rgba(56,189,248,.22)`;
@@ -2189,9 +2246,17 @@
     const label = isCollapsed ? "Expand panel" : "Collapse panel";
     const tooltip = isCollapsed ? "Expand" : "Collapse";
     const chevron = isCollapsed ? "▼" : "▲";
+    const pinLabel = pinned ? "Unpin panel position" : "Pin panel position";
+    const pinText = pinned ? "Pinned" : "Pin";
+    const pinStyle = pinned
+      ? "font-size:11px;line-height:1;padding:2px 8px;border-radius:6px;border:1px solid rgba(56,189,248,.55);background:rgba(56,189,248,.18);color:#67e8f9;cursor:pointer"
+      : "font-size:11px;line-height:1;padding:2px 8px;border-radius:6px;border:1px solid rgba(148,163,184,.35);background:#0f172a;color:#cbd5e1;cursor:pointer";
     return [
       "<strong style='color:#67e8f9;letter-spacing:.04em'>Economy Advisor</strong>",
+      "<span style='display:flex;gap:6px;align-items:center'>",
+      `<button id='ofe-econ-pin' type='button' aria-label='${pinLabel}' aria-pressed='${pinned ? "true" : "false"}' title='${pinLabel}' style='${pinStyle}'>${pinText}</button>`,
       `<button id='ofe-econ-collapse' type='button' aria-label='${label}' title='${tooltip}' style='font-size:12px;line-height:1;padding:2px 8px;border-radius:6px;border:1px solid rgba(148,163,184,.35);background:#0f172a;color:#cbd5e1;cursor:pointer'>${chevron}</button>`,
+      "</span>",
     ].join("");
   }
 
@@ -2221,6 +2286,72 @@
       saveCollapsed();
       applyCollapseStyles();
       render();
+    });
+  }
+
+  function bindPinAction() {
+    const btn = panelEl && panelEl.querySelector("#ofe-econ-pin");
+    if (!btn) return;
+    btn.addEventListener("click", () => {
+      pinned = !pinned;
+      if (pinned) {
+        savePosition();
+      } else {
+        clearPosition();
+      }
+      render();
+    });
+  }
+
+  function clampPanelPosition(top, left, panelWidth) {
+    const margin = 40;
+    const horizMargin = 80;
+    const maxTop = Math.max(0, window.innerHeight - margin);
+    const minLeft = horizMargin - panelWidth;
+    const maxLeft = Math.max(minLeft, window.innerWidth - horizMargin);
+    const clampedTop = Math.min(Math.max(0, top), maxTop);
+    const clampedLeft = Math.min(Math.max(minLeft, left), maxLeft);
+    return { top: clampedTop, left: clampedLeft };
+  }
+
+  function bindHeaderDrag(headerSlot) {
+    if (!headerSlot) return;
+    headerSlot.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) return;
+      if (e.target && e.target.closest && e.target.closest("button")) return;
+      if (!panelEl) return;
+      const rect = panelEl.getBoundingClientRect();
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startTop = rect.top;
+      const startLeft = rect.left;
+      const panelWidth = rect.width;
+      let moved = false;
+      try { headerSlot.setPointerCapture(e.pointerId); } catch (_) {}
+      headerSlot.style.cursor = "grabbing";
+      e.preventDefault();
+
+      const onMove = (ev) => {
+        if (!panelEl) return;
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+        if (!moved && Math.abs(dx) + Math.abs(dy) < 2) return;
+        moved = true;
+        const { top, left } = clampPanelPosition(startTop + dy, startLeft + dx, panelWidth);
+        panelEl.style.top = `${top}px`;
+        panelEl.style.left = `${left}px`;
+      };
+      const onUp = (ev) => {
+        headerSlot.removeEventListener("pointermove", onMove);
+        headerSlot.removeEventListener("pointerup", onUp);
+        headerSlot.removeEventListener("pointercancel", onUp);
+        try { headerSlot.releasePointerCapture(ev.pointerId); } catch (_) {}
+        headerSlot.style.cursor = "grab";
+        if (moved && pinned) savePosition();
+      };
+      headerSlot.addEventListener("pointermove", onMove);
+      headerSlot.addEventListener("pointerup", onUp);
+      headerSlot.addEventListener("pointercancel", onUp);
     });
   }
 
@@ -2398,6 +2529,7 @@
         lastHeaderHtml = nextHeaderHtml;
         headerSlot.innerHTML = nextHeaderHtml;
         bindCollapse();
+        bindPinAction();
       }
     }
 
@@ -2430,6 +2562,7 @@
     if (timer) return;
     loadCollapsed();
     loadSize();
+    loadPosition();
     loadOverlayState();
     let pendingFrame = false;
     let lastRenderAt = 0;
