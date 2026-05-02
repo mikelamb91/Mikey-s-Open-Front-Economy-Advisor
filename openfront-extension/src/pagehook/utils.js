@@ -142,6 +142,40 @@
     );
   };
 
+  // Vendor helper-bridge container IDs (declared in src/vendor/page-bridge/runtime.js).
+  // CSS-hiding these keeps vendor modules running so accumulated state
+  // (trade balances, GPM history, economy revenue) survives hide/unhide cycles.
+  const UI_HIDDEN_STYLE_ID = "ofe-ui-hidden-styles";
+  const UI_HIDDEN_VENDOR_SELECTORS = [
+    "#openfront-helper-bot-marker-layer",
+    "#openfront-helper-ally-marker-layer",
+    "#openfront-helper-economy-heatmap-layer",
+    "#openfront-helper-export-partner-heatmap-layer",
+    "#openfront-helper-nuke-target-heatmap-layer",
+    "#openfront-helper-stats-container",
+    "#openfront-helper-attack-amount-layer",
+    "#openfront-helper-nuke-landing-layer",
+    "#openfront-helper-boat-landing-layer",
+    "#openfront-helper-nuke-suggestion-layer",
+  ].join(",\n");
+
+  fn.applyUiHiddenStyles = () => {
+    const hidden = fn.isUiHidden ? fn.isUiHidden() : false;
+    const root = document.head || document.documentElement;
+    if (!root) return;
+    let styleEl = document.getElementById(UI_HIDDEN_STYLE_ID);
+    if (!hidden) {
+      if (styleEl) styleEl.remove();
+      return;
+    }
+    if (!styleEl) {
+      styleEl = document.createElement("style");
+      styleEl.id = UI_HIDDEN_STYLE_ID;
+      styleEl.textContent = `${UI_HIDDEN_VENDOR_SELECTORS} { display: none !important; }`;
+      root.appendChild(styleEl);
+    }
+  };
+
   fn.maybeNotifyShortcutBlocked = (code) => {
     const now = Date.now();
     const last = state.lastShortcutWarnAt[code] || 0;

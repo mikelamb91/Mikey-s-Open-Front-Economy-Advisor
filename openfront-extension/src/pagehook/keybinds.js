@@ -162,6 +162,7 @@
       showNukeTargetHeatmap: false,
       showSignalDock: true,
       showEconomyAdvisorPanel: true,
+      uiHidden: false,
     };
   }
 
@@ -292,6 +293,7 @@
   fn.getDefaultExtensionSettings = getDefaultExtensionSettings;
   fn.getExtensionSettingsRaw = getExtensionSettingsRaw;
   fn.getEffectiveExtensionSettings = getEffectiveExtensionSettings;
+  fn.isUiHidden = () => Boolean(primeExtensionSettingsCache().uiHidden);
   fn.saveExtensionSetting = saveExtensionSetting;
   fn.invalidateExtensionSettingsCache = invalidateExtensionSettingsCache;
   fn.extensionSoundEnabled = (key) => primeExtensionSettingsCache()[key] !== false;

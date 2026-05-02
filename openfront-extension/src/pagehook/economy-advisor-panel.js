@@ -7,17 +7,31 @@
   const { state, fn } = ns;
   const ROOT_ID = "ofe-economy-advisor-panel";
   const COLLAPSE_KEY = "ofe.econ.advisor.collapsed";
+  const SIZE_KEY = "ofe.econ.advisor.size";
+  const POSITION_KEY = "ofe.econ.advisor.position";
+  const OVERLAY_STATE_KEY = "ofe.econ.advisor.overlay";
   const OVERLAY_ID = "ofe-economy-advisor-overlay";
   let panelEl = null;
   let overlayEl = null;
   let timer = null;
   let sendTickTimer = null;
   let collapsed = false;
+  let lastExpandedHeight = "";
+  let savedSize = null;
+  let resizeObserver = null;
+  let resizeSaveTimer = null;
+  let pinned = false;
+  let savedPosition = null;
   let planCache = { at: 0, key: "", targets: [] };
   let spawnCache = { raw: "", at: 0, candidates: [] };
   let terrainIntelCache = { at: 0, key: "", data: null };
   let calcCache = { at: 0, data: null };
-  let lastPanelHtml = "";
+  let lastHeaderHtml = "";
+  let lastOverlayBarHtml = "";
+  let lastBodyHtml = "";
+  let shellBuilt = false;
+  let shellWasCollapsed = null;
+  let shellWasPinned = null;
   let lastOverlaySignature = "";
   const overlayLayers = {
     spawn: true,
@@ -75,6 +89,7 @@
   }
 
   function isEnabled() {
+    if (fn.isUiHidden && fn.isUiHidden()) return false;
     const settings = fn.getEffectiveExtensionSettings
       ? fn.getEffectiveExtensionSettings()
       : {};
@@ -99,31 +114,199 @@
     } catch (_) {}
   }
 
+  function loadSize() {
+    try {
+      const raw = localStorage.getItem(SIZE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return;
+      savedSize = {
+        width: typeof parsed.width === "string" ? parsed.width : "",
+        height: typeof parsed.height === "string" ? parsed.height : "",
+      };
+      if (savedSize.height) lastExpandedHeight = savedSize.height;
+    } catch (_) {
+      savedSize = null;
+    }
+  }
+
+  function saveSize() {
+    if (!panelEl) return;
+    try {
+      const payload = {
+        width: panelEl.style.width || "",
+        height: collapsed ? lastExpandedHeight : (panelEl.style.height || ""),
+      };
+      localStorage.setItem(SIZE_KEY, JSON.stringify(payload));
+    } catch (_) {}
+  }
+
+  function loadPosition() {
+    try {
+      const raw = localStorage.getItem(POSITION_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return;
+      if (parsed.pinned !== true) return;
+      const top = typeof parsed.top === "string" ? parsed.top : "";
+      const left = typeof parsed.left === "string" ? parsed.left : "";
+      if (!top && !left) return;
+      pinned = true;
+      savedPosition = { top, left };
+    } catch (_) {
+      pinned = false;
+      savedPosition = null;
+    }
+  }
+
+  function currentPositionPx() {
+    if (!panelEl) return null;
+    const inlineTop = panelEl.style.top;
+    const inlineLeft = panelEl.style.left;
+    if (inlineTop && inlineLeft) {
+      return { top: inlineTop, left: inlineLeft };
+    }
+    const rect = panelEl.getBoundingClientRect();
+    return { top: `${Math.round(rect.top)}px`, left: `${Math.round(rect.left)}px` };
+  }
+
+  function savePosition() {
+    if (!panelEl) return;
+    const pos = currentPositionPx();
+    if (!pos) return;
+    savedPosition = pos;
+    try {
+      localStorage.setItem(
+        POSITION_KEY,
+        JSON.stringify({ pinned: true, top: pos.top, left: pos.left }),
+      );
+    } catch (_) {}
+  }
+
+  function clearPosition() {
+    savedPosition = null;
+    try {
+      localStorage.removeItem(POSITION_KEY);
+    } catch (_) {}
+  }
+
+  function loadOverlayState() {
+    try {
+      const raw = localStorage.getItem(OVERLAY_STATE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return;
+      if (typeof parsed.enabled === "boolean") overlayEnabled = parsed.enabled;
+      if (parsed.layers && typeof parsed.layers === "object") {
+        for (const k of ["spawn", "build", "target", "route"]) {
+          if (typeof parsed.layers[k] === "boolean") overlayLayers[k] = parsed.layers[k];
+        }
+      }
+    } catch (_) {}
+  }
+
+  function saveOverlayState() {
+    try {
+      localStorage.setItem(OVERLAY_STATE_KEY, JSON.stringify({
+        enabled: overlayEnabled,
+        layers: { ...overlayLayers },
+      }));
+    } catch (_) {}
+  }
+
+  function scheduleSizeSave() {
+    if (resizeSaveTimer) clearTimeout(resizeSaveTimer);
+    resizeSaveTimer = setTimeout(() => {
+      resizeSaveTimer = null;
+      saveSize();
+    }, 250);
+  }
+
   function ensurePanel() {
     if (panelEl && document.body.contains(panelEl)) return panelEl;
     if (!document.body) return null;
 
+    shellBuilt = false;
     panelEl = document.createElement("div");
     panelEl.id = ROOT_ID;
     panelEl.style.cssText = [
       "position:fixed",
       "top:12px",
       "left:12px",
-      "width:min(384px,calc(100vw - 24px))",
-      "max-height:72vh",
-      "overflow:auto",
+      "width:384px",
+      "min-width:375px",
+      "max-width:calc(100vw - 24px)",
+      "height:60vh",
+      "min-height:100px",
+      "max-height:calc(100vh - 24px)",
+      "overflow:hidden",
+      "resize:both",
       "z-index:2147483250",
       "background:rgba(2,6,23,.92)",
       "border:1px solid rgba(56,189,248,.28)",
       "box-shadow:0 14px 36px rgba(2,6,23,.6)",
       "border-radius:10px",
-      "padding:8px",
+      "padding:0",
       "font:11px/1.35 system-ui,sans-serif",
       "color:#e2e8f0",
       "pointer-events:auto",
     ].join(";");
+    // Set the layout-critical properties via explicit setters (more robust than cssText
+    // when one of the values contains spaces, which can confuse some parsers).
+    panelEl.style.display = "flex";
+    panelEl.style.flexDirection = "column";
     document.body.appendChild(panelEl);
+    if (savedSize && savedSize.width) panelEl.style.width = savedSize.width;
+    if (savedSize && savedSize.height) panelEl.style.height = savedSize.height;
+    if (pinned && savedPosition) {
+      if (savedPosition.top) panelEl.style.top = savedPosition.top;
+      if (savedPosition.left) panelEl.style.left = savedPosition.left;
+    }
+    applyCollapseStyles();
+    clampPanelToViewport();
+    if (typeof ResizeObserver !== "undefined" && !resizeObserver) {
+      resizeObserver = new ResizeObserver(() => scheduleSizeSave());
+      resizeObserver.observe(panelEl);
+    }
     return panelEl;
+  }
+
+  function ensureOverlayChipStyles() {
+    if (document.getElementById("ofe-overlay-chip-styles")) return;
+    const style = document.createElement("style");
+    style.id = "ofe-overlay-chip-styles";
+    style.textContent =
+      "[data-ofe-overlay]:hover{transform:translateY(-1px);filter:brightness(1.2) saturate(1.15)}" +
+      "[data-ofe-overlay]:active{transform:translateY(0);filter:brightness(.95)}";
+    document.head.appendChild(style);
+  }
+
+  function buildShell() {
+    if (!panelEl) return;
+    ensureOverlayChipStyles();
+    panelEl.innerHTML = [
+      `<div id='ofe-eco-header' style='${headerSlotStyle(false, pinned)}'></div>`,
+      `<div id='ofe-eco-overlay-bar' style='${OVERLAY_BAR_SLOT_STYLE}'></div>`,
+      "<div id='ofe-eco-body' style='flex:1 1 0;min-height:0;overflow-y:auto;overflow-x:hidden;padding:8px'></div>",
+    ].join("");
+    shellBuilt = true;
+    shellWasCollapsed = null;
+    shellWasPinned = null;
+    lastHeaderHtml = "";
+    lastOverlayBarHtml = "";
+    lastBodyHtml = "";
+    bindHeaderDrag(panelEl.querySelector("#ofe-eco-header"));
+  }
+
+  function applyCollapseStyles() {
+    if (!panelEl) return;
+    if (collapsed) {
+      panelEl.style.height = "auto";
+    } else if (lastExpandedHeight) {
+      panelEl.style.height = lastExpandedHeight;
+    } else {
+      panelEl.style.height = "";
+    }
   }
 
   function ensureOverlay() {
@@ -1937,7 +2120,26 @@
       .join("");
   }
 
-  function renderExpanded(data) {
+  function renderSendCardsBlock(data) {
+    return [
+      "<div style='display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px'>",
+      "<div style='border:1px solid rgba(148,163,184,.3);border-radius:8px;padding:6px;background:rgba(15,23,42,.65)'>",
+      "<div style='font-size:10px;text-transform:uppercase;color:#94a3b8'>Recommended Send</div>",
+      `<div id='ofe-send-rec-value' style='font-weight:700'>${formatTroopsUi(data.recommendedSendTroops)} (${Number(data.recommendedSendPercent || 0)}%)</div>`,
+      "</div>",
+      "<div style='border:1px solid rgba(148,163,184,.3);border-radius:8px;padding:6px;background:rgba(15,23,42,.65)'>",
+      "<div style='font-size:10px;text-transform:uppercase;color:#94a3b8'>Max Safe Send</div>",
+      `<div id='ofe-send-max-value' style='font-weight:700'>${formatTroopsUi(data.maxSafeSendTroops)} (${Number(data.maxSafeSendPercent || 0)}%)</div>`,
+      "</div>",
+      "</div>",
+    ].join("");
+  }
+
+  function renderCompactBody(data) {
+    return renderSendCardsBlock(data);
+  }
+
+  function renderExpandedBody(data) {
     let perfLine = "";
     try {
       if (localStorage.getItem("ofe.perf.debug") === "1") {
@@ -1957,10 +2159,6 @@
       }
     } catch (_) {}
     return [
-      "<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:6px'>",
-      "<strong style='color:#67e8f9;letter-spacing:.04em'>Economy Advisor</strong>",
-      "<button id='ofe-econ-collapse' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(148,163,184,.35);background:#0f172a;color:#cbd5e1;cursor:pointer'>Collapse</button>",
-      "</div>",
       "<div style='border:1px solid rgba(56,189,248,.35);background:rgba(6,182,212,.12);border-radius:8px;padding:6px;margin-bottom:6px'>",
       "<div style='font-size:10px;text-transform:uppercase;color:#a5f3fc'>Best Next Step</div>",
       `<div style='font-weight:700'>${String(data.bestAction || "hold").toUpperCase()}</div>`,
@@ -1970,27 +2168,8 @@
       perfLine
         ? `<div style='font-size:10px;color:#67e8f9;margin-top:2px'>${perfLine}</div>`
         : "",
-      "<div style='margin-top:5px;display:flex;gap:4px;flex-wrap:wrap'>",
-      `<button data-ofe-overlay='toggle' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(52,211,153,.45);background:${overlayEnabled ? "rgba(16,185,129,.2)" : "rgba(15,23,42,.7)"};color:#d1fae5;cursor:pointer'>Hide Map Overlay</button>`,
-      `<button data-ofe-overlay='spawn' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(248,113,113,.4);background:${overlayLayers.spawn ? "rgba(239,68,68,.2)" : "rgba(15,23,42,.7)"};color:#fecaca;cursor:pointer'>Spawn dots</button>`,
-      `<button data-ofe-overlay='build' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(74,222,128,.4);background:${overlayLayers.build ? "rgba(34,197,94,.2)" : "rgba(15,23,42,.7)"};color:#bbf7d0;cursor:pointer'>Build spot</button>`,
-      `<button data-ofe-overlay='target' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(251,113,133,.4);background:${overlayLayers.target ? "rgba(244,63,94,.2)" : "rgba(15,23,42,.7)"};color:#fecdd3;cursor:pointer'>Target dot</button>`,
-      `<button data-ofe-overlay='route' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(56,189,248,.4);background:${overlayLayers.route ? "rgba(14,165,233,.2)" : "rgba(15,23,42,.7)"};color:#bae6fd;cursor:pointer'>Route line</button>`,
-      `<button data-ofe-overlay='boats' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(125,211,252,.45);background:${getOverlayHelperState().boats ? "rgba(14,165,233,.2)" : "rgba(15,23,42,.7)"};color:#bae6fd;cursor:pointer'>Landing boats</button>`,
-      `<button data-ofe-overlay='troops' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(167,139,250,.45);background:${getOverlayHelperState().troops ? "rgba(139,92,246,.2)" : "rgba(15,23,42,.7)"};color:#ddd6fe;cursor:pointer'>Troops sent</button>`,
-      `<button data-ofe-overlay='alliances' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(74,222,128,.45);background:${getOverlayHelperState().alliances ? "rgba(34,197,94,.2)" : "rgba(15,23,42,.7)"};color:#bbf7d0;cursor:pointer'>Alliance links</button>`,
       "</div>",
-      "</div>",
-      "<div style='display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px'>",
-      "<div style='border:1px solid rgba(148,163,184,.3);border-radius:8px;padding:6px;background:rgba(15,23,42,.65)'>",
-      "<div style='font-size:10px;text-transform:uppercase;color:#94a3b8'>Recommended Send</div>",
-      `<div id='ofe-send-rec-value' style='font-weight:700'>${formatTroopsUi(data.recommendedSendTroops)} (${Number(data.recommendedSendPercent || 0)}%)</div>`,
-      "</div>",
-      "<div style='border:1px solid rgba(148,163,184,.3);border-radius:8px;padding:6px;background:rgba(15,23,42,.65)'>",
-      "<div style='font-size:10px;text-transform:uppercase;color:#94a3b8'>Max Safe Send</div>",
-      `<div id='ofe-send-max-value' style='font-weight:700'>${formatTroopsUi(data.maxSafeSendTroops)} (${Number(data.maxSafeSendPercent || 0)}%)</div>`,
-      "</div>",
-      "</div>",
+      renderSendCardsBlock(data),
       `<div id='ofe-send-inputs' style='margin:-2px 0 6px;font-size:10px;color:#94a3b8'>Send inputs: troops ${formatTroopsUi(data.sendInputTroops)} | cap ${formatTroopsUi(data.sendInputCap)} | optimal ${formatTroopsUi(data.sendInputOptimalLow)}-${formatTroopsUi(data.sendInputOptimalHigh)} (peak ${formatTroopsUi(data.sendInputOptimalPeak)}) | ratio ${Math.round((Number(data.sendInputAttackRatio || 0) * 100))}% | tick ${Math.round(Number(data.sendInputTicks || 0)).toLocaleString()} | tiles ${Math.round(Number(data.sendInputTiles || 0)).toLocaleString()} | src ${String(data.sendInputSource || "fallback")}</div>`,
       "<div style='border:1px solid rgba(148,163,184,.3);border-radius:8px;padding:6px;background:rgba(15,23,42,.65);margin-bottom:6px'>",
       "<div style='font-size:10px;text-transform:uppercase;color:#94a3b8'>Enemy Economy Lead</div>",
@@ -2079,12 +2258,72 @@
     ].join("");
   }
 
-  function renderCollapsed() {
+  function headerSlotStyle(isCollapsed, isPinned) {
+    const cursor = isPinned ? "default" : "grab";
+    const baseStyle =
+      `flex:0 0 auto;padding:6px 10px;background:linear-gradient(rgba(56,189,248,.10),rgba(56,189,248,.10)),rgba(2,6,23,.96);display:flex;justify-content:space-between;align-items:center;cursor:${cursor};user-select:none;-webkit-user-select:none;touch-action:none`;
+    return isCollapsed
+      ? baseStyle
+      : `${baseStyle};border-bottom:1px solid rgba(56,189,248,.22)`;
+  }
+
+  const SVG_PIN_OUTLINE =
+    "<svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'><line x1='12' y1='17' x2='12' y2='22'/><path d='M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17z'/></svg>";
+
+  const SVG_PIN_FILLED =
+    "<svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'><line x1='12' y1='17' x2='12' y2='22'/><path d='M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17z' fill='currentColor'/></svg>";
+
+  const SVG_CHEVRON_UP =
+    "<svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'><polyline points='18 15 12 9 6 15'/></svg>";
+
+  const SVG_CHEVRON_DOWN =
+    "<svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'><polyline points='6 9 12 15 18 9'/></svg>";
+
+  const ICON_BTN_BASE =
+    "display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;padding:0;border-radius:6px;cursor:pointer";
+  const ICON_BTN_IDLE = `${ICON_BTN_BASE};border:1px solid rgba(148,163,184,.35);background:#0f172a;color:#cbd5e1`;
+  const ICON_BTN_ACTIVE = `${ICON_BTN_BASE};border:1px solid rgba(56,189,248,.55);background:rgba(56,189,248,.18);color:#67e8f9`;
+
+  function renderHeaderInner(isCollapsed) {
+    const label = isCollapsed ? "Expand panel" : "Collapse panel";
+    const tooltip = isCollapsed ? "Expand" : "Collapse";
+    const chevron = isCollapsed ? SVG_CHEVRON_DOWN : SVG_CHEVRON_UP;
+    const pinLabel = pinned ? "Unpin panel position" : "Pin panel position";
+    const pinIcon = pinned ? SVG_PIN_FILLED : SVG_PIN_OUTLINE;
+    const pinStyle = pinned ? ICON_BTN_ACTIVE : ICON_BTN_IDLE;
     return [
-      "<div style='display:flex;justify-content:space-between;align-items:center'>",
       "<strong style='color:#67e8f9;letter-spacing:.04em'>Economy Advisor</strong>",
-      "<button id='ofe-econ-collapse' type='button' style='font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid rgba(148,163,184,.35);background:#0f172a;color:#cbd5e1;cursor:pointer'>Expand</button>",
-      "</div>",
+      "<span style='display:flex;gap:6px;align-items:center'>",
+      `<button id='ofe-econ-pin' type='button' aria-label='${pinLabel}' aria-pressed='${pinned ? "true" : "false"}' title='${pinLabel}' style='${pinStyle}'>${pinIcon}</button>`,
+      `<button id='ofe-econ-collapse' type='button' aria-label='${label}' title='${tooltip}' style='${ICON_BTN_IDLE}'>${chevron}</button>`,
+      "</span>",
+    ].join("");
+  }
+
+  const OVERLAY_BAR_SLOT_STYLE =
+    "flex:0 0 auto;padding:8px 10px;background:rgba(2,6,23,.85);border-bottom:1px solid rgba(56,189,248,.22);display:flex;gap:10px 14px;flex-wrap:wrap";
+
+  const OVERLAY_CHIP_BASE =
+    "font-size:10px;padding:3px 8px;margin:3px 4px;border-radius:6px;cursor:pointer;font-weight:500;letter-spacing:.02em;transition:background .12s ease,color .12s ease,box-shadow .12s ease,transform .12s ease,filter .12s ease";
+
+  function chipStyle(rgb, active) {
+    if (active) {
+      return `${OVERLAY_CHIP_BASE};border:1px solid rgba(${rgb},.95);background:rgba(${rgb},.95);color:#0b1220;font-weight:600;box-shadow:0 0 0 1px rgba(${rgb},.25),0 0 6px rgba(${rgb},.45)`;
+    }
+    return `${OVERLAY_CHIP_BASE};border:1px solid rgba(${rgb},.3);background:rgba(15,23,42,.55);color:rgba(${rgb},.7)`;
+  }
+
+  function renderOverlayBarInner() {
+    const helpers = getOverlayHelperState();
+    return [
+      `<button data-ofe-overlay='toggle' type='button' style='${chipStyle("16,185,129", overlayEnabled)}'>Hide Map Overlay</button>`,
+      `<button data-ofe-overlay='spawn' type='button' style='${chipStyle("239,68,68", overlayLayers.spawn)}'>Spawn dots</button>`,
+      `<button data-ofe-overlay='build' type='button' style='${chipStyle("34,197,94", overlayLayers.build)}'>Build spot</button>`,
+      `<button data-ofe-overlay='target' type='button' style='${chipStyle("244,63,94", overlayLayers.target)}'>Target dot</button>`,
+      `<button data-ofe-overlay='route' type='button' style='${chipStyle("56,189,248", overlayLayers.route)}'>Route line</button>`,
+      `<button data-ofe-overlay='boats' type='button' style='${chipStyle("125,211,252", helpers.boats)}'>Landing boats</button>`,
+      `<button data-ofe-overlay='troops' type='button' style='${chipStyle("167,139,250", helpers.troops)}'>Troops sent</button>`,
+      `<button data-ofe-overlay='alliances' type='button' style='${chipStyle("74,222,128", helpers.alliances)}'>Alliance links</button>`,
     ].join("");
   }
 
@@ -2092,9 +2331,86 @@
     const btn = panelEl && panelEl.querySelector("#ofe-econ-collapse");
     if (!btn) return;
     btn.addEventListener("click", () => {
+      if (!collapsed && panelEl) lastExpandedHeight = panelEl.style.height;
       collapsed = !collapsed;
       saveCollapsed();
+      applyCollapseStyles();
       render();
+    });
+  }
+
+  function bindPinAction() {
+    const btn = panelEl && panelEl.querySelector("#ofe-econ-pin");
+    if (!btn) return;
+    btn.addEventListener("click", () => {
+      pinned = !pinned;
+      if (pinned) {
+        savePosition();
+      } else {
+        clearPosition();
+      }
+      render();
+    });
+  }
+
+  function clampPanelPosition(top, left, panelWidth, panelHeight) {
+    const maxTop = Math.max(0, window.innerHeight - panelHeight);
+    const maxLeft = Math.max(0, window.innerWidth - panelWidth);
+    const clampedTop = Math.min(Math.max(0, top), maxTop);
+    const clampedLeft = Math.min(Math.max(0, left), maxLeft);
+    return { top: clampedTop, left: clampedLeft };
+  }
+
+  function clampPanelToViewport() {
+    if (!panelEl || !document.body.contains(panelEl)) return;
+    const rect = panelEl.getBoundingClientRect();
+    const { top, left } = clampPanelPosition(rect.top, rect.left, rect.width, rect.height);
+    if (Math.round(top) !== Math.round(rect.top) || Math.round(left) !== Math.round(rect.left)) {
+      panelEl.style.top = `${top}px`;
+      panelEl.style.left = `${left}px`;
+      if (pinned) savePosition();
+    }
+  }
+
+  function bindHeaderDrag(headerSlot) {
+    if (!headerSlot) return;
+    headerSlot.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) return;
+      if (pinned) return;
+      if (e.target && e.target.closest && e.target.closest("button")) return;
+      if (!panelEl) return;
+      const rect = panelEl.getBoundingClientRect();
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startTop = rect.top;
+      const startLeft = rect.left;
+      const panelWidth = rect.width;
+      const panelHeight = rect.height;
+      let moved = false;
+      try { headerSlot.setPointerCapture(e.pointerId); } catch (_) {}
+      headerSlot.style.cursor = "grabbing";
+      e.preventDefault();
+
+      const onMove = (ev) => {
+        if (!panelEl) return;
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+        if (!moved && Math.abs(dx) + Math.abs(dy) < 2) return;
+        moved = true;
+        const { top, left } = clampPanelPosition(startTop + dy, startLeft + dx, panelWidth, panelHeight);
+        panelEl.style.top = `${top}px`;
+        panelEl.style.left = `${left}px`;
+      };
+      const onUp = (ev) => {
+        headerSlot.removeEventListener("pointermove", onMove);
+        headerSlot.removeEventListener("pointerup", onUp);
+        headerSlot.removeEventListener("pointercancel", onUp);
+        try { headerSlot.releasePointerCapture(ev.pointerId); } catch (_) {}
+        headerSlot.style.cursor = pinned ? "default" : "grab";
+      };
+      headerSlot.addEventListener("pointermove", onMove);
+      headerSlot.addEventListener("pointerup", onUp);
+      headerSlot.addEventListener("pointercancel", onUp);
     });
   }
 
@@ -2141,21 +2457,18 @@
           overlayLayers.target = false;
           overlayLayers.route = false;
           setOverlayHelperState({ boats: false, troops: false, alliances: false });
+          saveOverlayState();
         } else if (action) {
-          // Single-select mode: turn on only the clicked overlay.
-          overlayEnabled = true;
-          overlayLayers.spawn = false;
-          overlayLayers.build = false;
-          overlayLayers.target = false;
-          overlayLayers.route = false;
-          const nextHelpers = { boats: false, troops: false, alliances: false };
-
           if (Object.prototype.hasOwnProperty.call(overlayLayers, action)) {
-            overlayLayers[action] = true;
+            overlayLayers[action] = !overlayLayers[action];
+            // Re-arm master gate so a chip turned on after Hide Map Overlay actually draws.
+            if (overlayLayers[action]) overlayEnabled = true;
+            saveOverlayState();
           } else if (Object.prototype.hasOwnProperty.call(OVERLAY_HELPER_KEYS, action)) {
-            nextHelpers[action] = true;
+            const helpers = getOverlayHelperState();
+            helpers[action] = !helpers[action];
+            setOverlayHelperState(helpers);
           }
-          setOverlayHelperState(nextHelpers);
         }
         render();
       });
@@ -2246,24 +2559,67 @@
     if (document.hidden) return;
     if (!isEnabled() || !inGame()) {
       if (panelEl) panelEl.style.display = "none";
-      lastPanelHtml = "";
+      lastHeaderHtml = "";
+      lastOverlayBarHtml = "";
+      lastBodyHtml = "";
       lastOverlaySignature = "";
       clearOverlay();
       return;
     }
     const el = ensurePanel();
     if (!el) return;
+    if (!shellBuilt) buildShell();
     const data = calc();
-    el.style.display = "";
-    const nextHtml = collapsed ? renderCollapsed() : renderExpanded(data);
-    if (nextHtml !== lastPanelHtml) {
-      lastPanelHtml = nextHtml;
-      el.innerHTML = nextHtml;
-      bindCollapse();
-      bindPlanActions();
-      bindSamActions();
-      bindOverlayActions();
+    el.style.display = "flex";
+
+    const headerSlot = el.querySelector("#ofe-eco-header");
+    const overlayBarSlot = el.querySelector("#ofe-eco-overlay-bar");
+    const bodySlot = el.querySelector("#ofe-eco-body");
+
+    if (overlayBarSlot) overlayBarSlot.style.display = collapsed ? "none" : "";
+    if (bodySlot) bodySlot.style.display = "";
+
+    if (headerSlot) {
+      if (shellWasCollapsed !== collapsed || shellWasPinned !== pinned) {
+        headerSlot.setAttribute("style", headerSlotStyle(collapsed, pinned));
+      }
+      const nextHeaderHtml = renderHeaderInner(collapsed);
+      if (nextHeaderHtml !== lastHeaderHtml) {
+        lastHeaderHtml = nextHeaderHtml;
+        headerSlot.innerHTML = nextHeaderHtml;
+        bindCollapse();
+        bindPinAction();
+      }
     }
+
+    if (!collapsed) {
+      if (overlayBarSlot) {
+        const nextOverlayBarHtml = renderOverlayBarInner();
+        if (nextOverlayBarHtml !== lastOverlayBarHtml) {
+          lastOverlayBarHtml = nextOverlayBarHtml;
+          overlayBarSlot.innerHTML = nextOverlayBarHtml;
+          bindOverlayActions();
+        }
+      }
+      if (bodySlot) {
+        const nextBodyHtml = renderExpandedBody(data);
+        if (nextBodyHtml !== lastBodyHtml) {
+          lastBodyHtml = nextBodyHtml;
+          bodySlot.innerHTML = nextBodyHtml;
+          bindPlanActions();
+          bindSamActions();
+        }
+      }
+    } else if (bodySlot) {
+      const nextBodyHtml = renderCompactBody(data);
+      if (nextBodyHtml !== lastBodyHtml) {
+        lastBodyHtml = nextBodyHtml;
+        bodySlot.innerHTML = nextBodyHtml;
+      }
+    }
+
+    shellWasCollapsed = collapsed;
+    shellWasPinned = pinned;
     drawOverlayFromData(data);
     bumpPerfMetric("render", performance.now() - startedAt);
   }
@@ -2271,6 +2627,17 @@
   fn.initEconomyAdvisorPanel = () => {
     if (timer) return;
     loadCollapsed();
+    loadSize();
+    loadPosition();
+    loadOverlayState();
+    let resizeRaf = 0;
+    window.addEventListener("resize", () => {
+      if (resizeRaf) return;
+      resizeRaf = requestAnimationFrame(() => {
+        resizeRaf = 0;
+        clampPanelToViewport();
+      });
+    });
     let pendingFrame = false;
     let lastRenderAt = 0;
     const minRenderGap = () => {

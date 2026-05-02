@@ -62,11 +62,23 @@
     toggle.innerHTML = visible ? OPEN_ICON_SVG : CLOSED_ICON_SVG;
   }
 
+  function applyUiHiddenOverride() {
+    if (!state.shortcutPanelState) return false;
+    if (!fn.isUiHidden || !fn.isUiHidden()) return false;
+    const { panel, toggle, notice, tooltip } = state.shortcutPanelState;
+    panel.style.display = "none";
+    toggle.style.display = "none";
+    notice.style.display = "none";
+    if (tooltip) tooltip.style.display = "none";
+    return true;
+  }
+
   function setShortcutPanelVisible(visible) {
     if (!state.shortcutPanelState) return;
     state.shortcutPanelState.visible = visible;
     state.shortcutPanelState.panel.style.display = visible ? "" : "none";
     state.shortcutPanelState.notice.style.display = "none";
+    state.shortcutPanelState.toggle.style.display = "";
     setToggleIcon(state.shortcutPanelState.toggle, visible);
     state.shortcutPanelState.toggle.title = visible ? "Hide shortcuts" : "Show shortcuts";
     state.shortcutPanelState.toggle.style.opacity = visible ? "0.8" : "1";
@@ -78,6 +90,7 @@
     updatePanelPlacement();
     writePanelVisibleSetting(visible);
     lastPanelSignature = "";
+    applyUiHiddenOverride();
     if (visible) renderShortcutPanel();
   }
 
@@ -146,6 +159,7 @@
   function renderShortcutPanel() {
     if (!state.shortcutPanelState || !fn.getShortcutDiagnostics) return;
     if (document.hidden) return;
+    if (applyUiHiddenOverride()) return;
 
     const diagnostics = fn.getShortcutDiagnostics();
     const signature = diagnosticsSignature(diagnostics);
@@ -365,6 +379,9 @@
     }, 1600);
     window.addEventListener("ofe-settings-updated", () => {
       lastPanelSignature = "";
+      if (state.shortcutPanelState) {
+        setShortcutPanelVisible(state.shortcutPanelState.visible);
+      }
       renderShortcutPanel();
     });
     window.addEventListener("ofe-live-stats-updated", () => {
